@@ -8,7 +8,7 @@
 use std::collections::{HashMap, HashSet};
 use std::env;
 use std::fs;
-use std::io::{BufRead, BufReader, Read, Write};
+use std::io::{BufRead, BufReader, Read, Seek, SeekFrom, Write};
 use std::path::{Path, PathBuf};
 use std::process::Stdio;
 use std::sync::{mpsc, Arc, Mutex, OnceLock};
@@ -17,6 +17,7 @@ use std::time::Duration;
 use std::time::Instant;
 use std::time::{SystemTime, UNIX_EPOCH};
 
+use serde::Deserialize;
 use serde_json::Value;
 use serde_json::{json, Map};
 
@@ -1412,6 +1413,7 @@ const CACHE_MAX_ENTRIES: usize = 20_000;
 
 static META_CACHE: OnceLock<Mutex<FpCache<Meta>>> = OnceLock::new();
 static SCAN_BODY_CACHE: OnceLock<Mutex<FpCache<ScanBody>>> = OnceLock::new();
+static ACTIVITY_TIME_CACHE: OnceLock<Mutex<FpCache<Option<u64>>>> = OnceLock::new();
 
 fn meta_cache() -> &'static Mutex<FpCache<Meta>> {
     META_CACHE.get_or_init(|| Mutex::new(FpCache::default()))
@@ -1421,11 +1423,195 @@ fn scan_body_cache() -> &'static Mutex<FpCache<ScanBody>> {
     SCAN_BODY_CACHE.get_or_init(|| Mutex::new(FpCache::default()))
 }
 
-/// 诊断用：两个扫描缓存当前的条目数。
+fn activity_time_cache() -> &'static Mutex<FpCache<Option<u64>>> {
+    ACTIVITY_TIME_CACHE.get_or_init(|| Mutex::new(FpCache::default()))
+}
+
+#[derive(Deserialize)]
+struct CodexActivityRecord<'a> {
+    #[serde(rename = "type", borrow)]
+    record_type: Option<&'a str>,
+    #[serde(borrow)]
+    timestamp: Option<&'a str>,
+    payload: Option<CodexActivityPayload<'a>>,
+}
+
+#[derive(Deserialize)]
+struct CodexActivityPayload<'a> {
+    #[serde(rename = "type", borrow)]
+    event_type: Option<&'a str>,
+    #[serde(borrow)]
+    message: Option<&'a str>,
+    images: Option<Vec<serde::de::IgnoredAny>>,
+    local_images: Option<Vec<serde::de::IgnoredAny>>,
+    text_elements: Option<Vec<serde::de::IgnoredAny>>,
+    completed_at_ms: Option<u64>,
+    item: Option<CodexActivityItem<'a>>,
+}
+
+#[derive(Deserialize)]
+struct CodexActivityItem<'a> {
+    #[serde(rename = "type", borrow)]
+    item_type: Option<&'a str>,
+    content: Option<Vec<CodexActivityContent<'a>>>,
+}
+
+#[derive(Deserialize)]
+struct CodexActivityContent<'a> {
+    #[serde(rename = "type", borrow)]
+    block_type: Option<&'a str>,
+    #[serde(borrow)]
+    text: Option<&'a str>,
+}
+
+impl CodexActivityRecord<'_> {
+    fn is_conversation_message(&self) -> bool {
+        if self.record_type != Some("event_msg") {
+            return false;
+        }
+        let Some(payload) = &self.payload else {
+            return false;
+        };
+        match payload.event_type {
+            Some("user_message") => {
+                payload.message.is_some_and(|text| !text.trim().is_empty())
+                    || payload
+                        .images
+                        .as_ref()
+                        .is_some_and(|items| !items.is_empty())
+                    || payload
+                        .local_images
+                        .as_ref()
+                        .is_some_and(|items| !items.is_empty())
+                    || payload
+                        .text_elements
+                        .as_ref()
+                        .is_some_and(|items| !items.is_empty())
+            }
+            Some("agent_message") => payload.message.is_some_and(|text| !text.trim().is_empty()),
+            Some("item_completed") => match payload.item.as_ref().and_then(|item| item.item_type) {
+                Some("UserMessage") => true,
+                Some("AgentMessage") => payload
+                    .item
+                    .as_ref()
+                    .and_then(|item| item.content.as_ref())
+                    .is_some_and(|blocks| {
+                        blocks.iter().any(|block| {
+                            matches!(
+                                block.block_type,
+                                Some("input_text" | "text" | "Text" | "output_text")
+                            ) && block.text.is_some_and(|text| !text.trim().is_empty())
+                        })
+                    }),
+                _ => false,
+            },
+            _ => false,
+        }
+    }
+
+    fn timestamp_ms(&self) -> Option<u64> {
+        self.timestamp
+            .and_then(parse_iso8601_ms)
+            .and_then(|timestamp| u64::try_from(timestamp).ok())
+            .or_else(|| {
+                self.payload
+                    .as_ref()
+                    .and_then(|payload| payload.completed_at_ms)
+            })
+    }
+}
+
+/// Codex may append settings and lifecycle events when a thread is merely opened.
+/// Walk the append-only JSONL backwards and stop at the latest user/assistant message,
+/// so those non-conversation writes cannot change the session's displayed update time.
+fn last_conversation_timestamp(fp: &Path) -> Option<u64> {
+    const CHUNK_SIZE: usize = 64 * 1024;
+
+    let mut file = fs::File::open(fp).ok()?;
+    let mut remaining = file.seek(SeekFrom::End(0)).ok()?;
+    let mut partial = Vec::new();
+    let mut chunk = vec![0u8; CHUNK_SIZE];
+
+    while remaining > 0 {
+        let start = remaining.saturating_sub(CHUNK_SIZE as u64);
+        let len = (remaining - start) as usize;
+        file.seek(SeekFrom::Start(start)).ok()?;
+        file.read_exact(&mut chunk[..len]).ok()?;
+
+        let mut data = Vec::with_capacity(len + partial.len());
+        data.extend_from_slice(&chunk[..len]);
+        data.append(&mut partial);
+
+        if start == 0 {
+            for line in data.rsplit(|byte| *byte == b'\n') {
+                if let Some(timestamp) = conversation_line_timestamp(line) {
+                    return Some(timestamp);
+                }
+            }
+            return None;
+        }
+
+        let Some(first_newline) = data.iter().position(|byte| *byte == b'\n') else {
+            partial = data;
+            remaining = start;
+            continue;
+        };
+        for line in data[first_newline + 1..].rsplit(|byte| *byte == b'\n') {
+            if let Some(timestamp) = conversation_line_timestamp(line) {
+                return Some(timestamp);
+            }
+        }
+        partial.extend_from_slice(&data[..first_newline]);
+        remaining = start;
+    }
+    None
+}
+
+fn conversation_line_timestamp(line: &[u8]) -> Option<u64> {
+    let record: CodexActivityRecord<'_> = serde_json::from_slice(line).ok()?;
+    record
+        .is_conversation_message()
+        .then(|| record.timestamp_ms())
+        .flatten()
+}
+
+fn activity_timestamp(fp: &Path, mtime: u64, size: u64, meta: &Meta) -> u64 {
+    let cached = activity_time_cache()
+        .lock()
+        .ok()
+        .and_then(|cache| cache.get(fp, mtime, size));
+    let message_time = match cached {
+        Some(timestamp) => timestamp,
+        None => {
+            let timestamp = last_conversation_timestamp(fp);
+            if let Ok(mut cache) = activity_time_cache().lock() {
+                cache.put(fp, mtime, size, timestamp, CACHE_MAX_ENTRIES);
+            }
+            timestamp
+        }
+    };
+    message_time
+        .or_else(|| {
+            meta.created
+                .as_deref()
+                .and_then(parse_iso8601_ms)
+                .and_then(|timestamp| u64::try_from(timestamp).ok())
+        })
+        .unwrap_or(mtime)
+}
+
+/// 诊断用：扫描缓存当前的条目数。
 pub fn scan_cache_entries() -> usize {
     let meta = meta_cache().lock().map(|c| c.entries.len()).unwrap_or(0);
-    let body = scan_body_cache().lock().map(|c| c.entries.len()).unwrap_or(0);
-    meta + body
+    let body = scan_body_cache()
+        .lock()
+        .map(|c| c.entries.len())
+        .unwrap_or(0);
+    let activity = activity_time_cache()
+        .lock()
+        .map(|c| c.entries.len())
+        .unwrap_or(0);
+    meta + body + activity
 }
 
 /// 带缓存的首行 `session_meta`。列表要靠它判断「这个文件属于哪个项目」，
@@ -1592,6 +1778,8 @@ fn scan(
     fp: &Path,
     m: &Meta,
     title_index: &HashMap<String, TitleIndexEntry>,
+    mtime: u64,
+    activity_time: u64,
     flags: CodexThreadFlags,
 ) -> SessionMeta {
     let file_name = fp
@@ -1599,7 +1787,7 @@ fn scan(
         .map(|n| n.to_string_lossy().to_string())
         .unwrap_or_default();
     let size = fs::metadata(fp).map(|m| m.len()).unwrap_or(0);
-    let modified = mtime_millis(fp);
+    let modified = mtime;
 
     // 文件派生的部分走指纹缓存；解构成同名变量，下面的组装逻辑保持原样。
     let ScanBody {
@@ -1633,7 +1821,7 @@ fn scan(
         title,
         cwd: Some(m.cwd.clone()),
         created: m.created.clone(),
-        modified,
+        modified: activity_time,
         size,
         message_count,
         pi_branch_count: None,
@@ -2400,7 +2588,7 @@ impl SessionSource for CodexSource {
         // 列任何项目都得把所有 rollout 过一遍。原来是逐个开文件读首行，于是列一个
         // 只有 1 个会话的项目也要 257ms。现在一次 metadata 拿到指纹的两半，命中缓存
         // 就完全不碰文件内容 —— 顺带还省掉了原先单独再 stat 一次取 mtime。
-        let mut matched: Vec<(PathBuf, Meta, u64, CodexThreadFlags)> = Vec::new();
+        let mut matched: Vec<(PathBuf, Meta, u64, u64, CodexThreadFlags)> = Vec::new();
         let flags_index = load_thread_flags_index();
         for fp in all_files(include_codex_archived) {
             let Ok(md) = fs::metadata(&fp) else {
@@ -2423,9 +2611,10 @@ impl SessionSource for CodexSource {
             if !include_by_flags(flags, include_codex_internal, include_codex_archived) {
                 continue;
             }
-            matched.push((fp, m, mt, flags));
+            let activity_time = activity_timestamp(&fp, mt, size, &m);
+            matched.push((fp, m, mt, activity_time, flags));
         }
-        matched.sort_by_key(|m| std::cmp::Reverse(m.2));
+        matched.sort_by_key(|m| std::cmp::Reverse(m.3));
         let total = matched.len();
         // Codex 把会话标题缓存在 ~/.codex/session_index.jsonl（append-only，同 id
         // 多条时最新一条胜出）。列表整页加载一次即可，避免每个会话都重读一次文件。
@@ -2434,7 +2623,9 @@ impl SessionSource for CodexSource {
             .iter()
             .skip(offset)
             .take(limit)
-            .map(|(p, m, _, flags)| scan(p, m, &title_index, *flags))
+            .map(|(p, m, mt, activity_time, flags)| {
+                scan(p, m, &title_index, *mt, *activity_time, *flags)
+            })
             .collect();
         if limit != usize::MAX {
             let snapshot = cached_codex_app_thread_list();
@@ -3231,9 +3422,23 @@ mod tests {
         assert_eq!(msgs[1].blocks[0].text.as_deref(), Some("已处理"));
 
         let meta = meta(&p).expect("meta");
-        let session = scan(&p, &meta, &HashMap::new(), CodexThreadFlags::default());
+        let mtime = mtime_millis(&p);
+        let size = fs::metadata(&p).unwrap().len();
+        let activity_time = activity_timestamp(&p, mtime, size, &meta);
+        let session = scan(
+            &p,
+            &meta,
+            &HashMap::new(),
+            mtime,
+            activity_time,
+            CodexThreadFlags::default(),
+        );
         assert_eq!(session.title, "[Image #1] 给宠物增加右键菜单，看截图");
         assert_eq!(session.message_count, 2);
+        assert_eq!(
+            session.modified,
+            parse_iso8601_ms("2026-08-12T02:52:03.000Z").unwrap() as u64,
+        );
     }
 
     #[cfg(windows)]
@@ -3894,10 +4099,24 @@ Only after the original task is complete, process this follow-up in the order re
         assert_eq!(msgs[5].blocks[0].text.as_deref(), Some("What about Vue 3?"));
 
         let meta = meta(&p).expect("meta");
-        let session = scan(&p, &meta, &title_index, CodexThreadFlags::default());
+        let mtime = mtime_millis(&p);
+        let size = fs::metadata(&p).unwrap().len();
+        let activity_time = activity_timestamp(&p, mtime, size, &meta);
+        let session = scan(
+            &p,
+            &meta,
+            &title_index,
+            mtime,
+            activity_time,
+            CodexThreadFlags::default(),
+        );
         assert_eq!(
             session.message_count, 4,
             "commentary should not inflate session counts"
+        );
+        assert_eq!(
+            session.modified,
+            parse_iso8601_ms("2026-06-08T02:12:20.000Z").unwrap() as u64,
         );
     }
 

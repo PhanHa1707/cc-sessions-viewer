@@ -30,6 +30,8 @@ export interface ModelMenuConfig {
 export interface ModelMenuOptions {
   claudeAliasMode?: boolean
   claudeAliasTargets?: Partial<Record<'opus' | 'sonnet' | 'haiku' | 'fable', string>>
+  /** Actual model from Codex config.toml, only supplied for custom providers. */
+  codexConfiguredModel?: string
 }
 
 /** 该 agent 是否支持 GUI chat。入口 v-if / quick-open 守卫统一用此函数。 */
@@ -45,6 +47,8 @@ export const CHAT_MODEL_MENU: Record<Agent, ModelMenuConfig> = {
     // "Requires usage credits"），选中/作为新会话默认都会计费。
     primary: [
       { value: 'claude-fable-5-1', label: 'Fable 5.1' },
+      { value: 'claude-opus-5-5', label: 'Opus 5.5' },
+      { value: 'claude-sonnet-5-5', label: 'Sonnet 5.5' },
       { value: 'claude-opus-5', label: 'Opus 5' },
       { value: 'claude-sonnet-5', label: 'Sonnet 5' },
       { value: 'claude-haiku-4-5-20251001', label: 'Haiku 4.5' },
@@ -62,13 +66,16 @@ export const CHAT_MODEL_MENU: Record<Agent, ModelMenuConfig> = {
   codex: {
     unavailable: [],
     primary: [
+      { value: 'gpt-6.1-sol', label: 'GPT-6.1-Sol' },
+      { value: 'gpt-6-sol', label: 'GPT-6-Sol' },
       { value: 'gpt-6-astra', label: 'GPT-6-Astra' },
-      { value: 'gpt-5.6-sol', label: 'GPT-5.6-Sol' },
+      { value: 'gpt-6-luna', label: 'GPT-6-Luna' },
       { value: 'gpt-5.6-terra', label: 'GPT-5.6-Terra' },
+      { value: 'gpt-5.6-sol', label: 'GPT-5.6-Sol' },
       { value: 'gpt-5.6-luna', label: 'GPT-5.6-Luna' },
       { value: 'gpt-5.5', label: 'GPT-5.5' },
     ],
-    // 上面这 5 个就是全部：codex-cli 0.154.0 的 `model/list` 只返回它们。
+    // 模型 ID 与 OpenAI 官方 Codex/API 模型目录保持一致。
     // 5.4 系列与 5.3-codex-spark 均已被 Codex 下架（spark 连字符串都不在 CLI 二进制里了），
     // 选中会被 CLI 拒。旧会话记着的已下架模型由 sanitizeModel 回退到 defaultModel。
     more: [],
@@ -112,6 +119,18 @@ export function modelMenuFor(agent: Agent, opts: ModelMenuOptions = {}): ModelMe
       ),
     }
   }
+  if (agent === 'codex') {
+    const configured = opts.codexConfiguredModel?.trim()
+    const menu = CHAT_MODEL_MENU.codex
+    if (configured && ![...menu.primary, ...menu.more].some((m) => m.value === configured)) {
+      // Codex has no Claude-style alias mapping. Keep the configured request ID
+      // intact rather than inventing a GPT alias for a third-party model.
+      return {
+        ...menu,
+        primary: [{ value: configured, label: configured }, ...menu.primary],
+      }
+    }
+  }
   return CHAT_MODEL_MENU[agent]
 }
 
@@ -137,7 +156,7 @@ export function requiresCredits(value: string | undefined): boolean {
 
 /**
  * 全新会话进来时自动选中的模型 = 主列表里第一个「不烧额度」的模型。
- * Fable 虽排在展示第一位，但需 credits，默认跳过，落到 Opus 5；alias 模式下
+ * Fable 虽排在展示第一位，但需 credits，默认跳过，落到 Opus 5.5；alias 模式下
  * primary[0]（opus 别名）不烧额度，照常返回。都没有则回落 primary[0]。
  */
 export function autoPickModel(agent: Agent, opts: ModelMenuOptions = {}): string | undefined {
@@ -187,13 +206,13 @@ export const CHAT_EFFORT_LEVELS: Record<Agent, string[]> = {
 }
 
 /** Claude 多一档「ultracode」的模型（排在 max 之后）。 */
-const ULTRACODE_MODELS = new Set(['claude-fable-5-1', 'claude-fable-5', 'claude-opus-5', 'claude-opus-4-8', 'claude-opus-4-7'])
+const ULTRACODE_MODELS = new Set(['claude-fable-5-1', 'claude-fable-5', 'claude-opus-5-5', 'claude-opus-5', 'claude-opus-4-8', 'claude-opus-4-7'])
 
-/** Codex 5.6-luna: base + max */
-const CODEX_MAX_MODELS = new Set(['gpt-5.6-luna'])
+/** Codex 6-luna / 5.6-luna: base + max */
+const CODEX_MAX_MODELS = new Set(['gpt-6-luna', 'gpt-5.6-luna'])
 
-/** Codex 6-astra / 5.6-terra / 5.6-sol: base + max + ultra */
-const CODEX_ULTRA_MODELS = new Set(['gpt-6-astra', 'gpt-5.6-sol', 'gpt-5.6-terra'])
+/** Codex GPT-6 flagship models and 5.6 Sol/Terra: base + max + ultra */
+const CODEX_ULTRA_MODELS = new Set(['gpt-6-astra', 'gpt-6-sol', 'gpt-6.1-sol', 'gpt-5.6-sol', 'gpt-5.6-terra'])
 
 export function effortLevelsFor(agent: Agent, model: string | undefined): string[] {
   const base = CHAT_EFFORT_LEVELS[agent]
@@ -279,12 +298,12 @@ function knownModelValues(agent: Agent): Set<string> {
 /**
  * 会话记忆的模型可能来自旧数据、已不在当前菜单里（如 `gpt-5.3-codex`）。这时别把会话停在
  * 一个不存在的模型上 —— 回退到该 agent 的兜底：codex → gpt-5.5（= defaultModel），
- * claude → opus-5。model 为空则原样返回，交给上层的 `?? defaultModel(agent)` 处理。
+ * claude → opus-5-5。model 为空则原样返回，交给上层的 `?? defaultModel(agent)` 处理。
  */
 export function sanitizeModel(agent: Agent, model: string | undefined): string | undefined {
   if (!model) return model
   if (knownModelValues(agent).has(model)) return model
-  if (agent === 'claude') return 'claude-opus-5'
+  if (agent === 'claude') return 'claude-opus-5-5'
   return defaultModel(agent)
 }
 

@@ -92,6 +92,26 @@ const emit = defineEmits<{
 }>()
 const claudeHasCustomBaseUrl = ref(false)
 const claudeAliasTargets = ref<Record<string, string | undefined>>({})
+const codexConfiguredModel = ref<string | undefined>(undefined)
+// Runtime metadata is display-only: opening/reopening a composer must never
+// overwrite the model already selected for its session.
+let codexRuntimeRequest = 0
+watch(
+  [() => props.session.uiId, () => props.session.agent],
+  async () => {
+    const request = ++codexRuntimeRequest
+    codexConfiguredModel.value = undefined
+    if (props.session.agent !== 'codex') return
+    try {
+      const info = await api.codexRuntimeInfo()
+      if (request !== codexRuntimeRequest) return
+      codexConfiguredModel.value = info.usesApiKey ? info.model : undefined
+    } catch {
+      // Config unavailable: retain the regular model menu and current label.
+    }
+  },
+  { immediate: true },
+)
 // init 事件回来前对鉴权方式的预判（后端 runtime_info 判：钥匙串有订阅凭证 → 'none'）。
 // 进会话即拿，让官方订阅用户立刻看到 effort + 限额，而不是等首轮 init 才显形。
 const claudeRuntimeApiKeySource = ref<string | undefined>(undefined)
@@ -178,6 +198,7 @@ onMounted(() => {
   focusInput()
 })
 onBeforeUnmount(() => {
+  codexRuntimeRequest += 1
   saveDraft(props.session)
   if (pollsClaudeUsage) stopUsagePolling()
   if (pollsCodexUsage) stopCodexUsagePolling()
@@ -338,6 +359,7 @@ const claudeAliasMode = computed(
 const modelMenuOptions = computed<ModelMenuOptions>(() => ({
   claudeAliasMode: claudeAliasMode.value,
   claudeAliasTargets: claudeAliasTargets.value,
+  codexConfiguredModel: codexConfiguredModel.value,
 }))
 const showModelPicker = computed(() => hasModelChoice(agent.value, modelMenuOptions.value))
 // 生效中的模型：用户没显式选过时（新会话 session.model=undefined）回落到运行时实际模型

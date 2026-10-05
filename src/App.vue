@@ -139,7 +139,7 @@ import {
   setViewTitle,
   removeViewEverywhere,
 } from './viewHistory'
-import { startChat, closeChat, reconnectChats, lastAssistantModel, migrateChatSessionsProjectKey, chatSessions, findChatBySourceSession, type ChatSession } from './chatSessions'
+import { startChat, closeChat, reconnectChats, lastAssistantModel, migrateChatSessionsProjectKey, chatSessions, findChatBySourceSession, waitForChatClose, type ChatSession } from './chatSessions'
 import type { ChatHistoryEntry } from './chatInputHistory'
 import { sideChat, openSideChat, closeSideChat, closeAllSideChats, activeBtwSessionIds } from './sideChat'
 import {
@@ -539,8 +539,11 @@ const focusedPaneViews = computed(() => paneViewsOf(focusedPane.value?.id))
 const chatViewRef = computed(() => focusedPaneViews.value?.chatView ?? null)
 const sidebarRef = ref<InstanceType<typeof Sidebar> | null>(null)
 const TUI_TITLE_SYNC_INTERVAL_MS = 4000
+const PI_SESSION_LIST_SYNC_INTERVAL_MS = 12000
 let tuiTitleSyncTimer = 0
 let syncingTuiTitles = false
+let lastPiSessionListSyncAt = 0
+let syncingPiSessionList = false
 
 watch(openSession, (val, old) => {
   // 切换 / 关闭会话时把聊天页顶栏（搜索 / 折叠 / 等）状态归零，
@@ -1855,6 +1858,53 @@ async function syncTuiTitlesNow() {
   }
 }
 
+/**
+ * Pi can keep appending to a session from an external terminal for hours. Unlike
+ * an embedded TUI, that process has no tab lifecycle to trigger list refreshes,
+ * so keep the visible Pi project list in sync while this window is foregrounded.
+ */
+async function syncPiSessionListNow(force = false) {
+  if (
+    agent.value !== 'pi' ||
+    !activeDir.value ||
+    !appVisible() ||
+    showTrash.value ||
+    showStats.value ||
+    showExportHistory.value ||
+    showPricing.value ||
+    showSettings.value ||
+    showTools.value ||
+    activeViewTab.value ||
+    hasCurrentProjectTuiTabs() ||
+    loadingList.value ||
+    loadingMore.value ||
+    syncingPiSessionList
+  ) return
+  const now = Date.now()
+  if (!force && now - lastPiSessionListSyncAt < PI_SESSION_LIST_SYNC_INTERVAL_MS) return
+  lastPiSessionListSyncAt = now
+  syncingPiSessionList = true
+  const scope = sessionScope()
+  try {
+    const page = await api.listSessions(
+      'pi',
+      activeDir.value,
+      0,
+      Math.max(PAGE_SIZE, sessions.value.length),
+      sessionListOptions(),
+    )
+    if (sessionScope() !== scope) return
+    if (page.total !== sessionTotal.value) markProjectsDirty()
+    sessions.value = page.sessions
+    sessionTotal.value = page.total
+    syncTuiTabsFromCurrentSessions()
+  } catch {
+    // Background refreshes stay quiet; the list's manual refresh reports errors.
+  } finally {
+    syncingPiSessionList = false
+  }
+}
+
 async function refreshSessions() {
   if (!activeDir.value || loadingList.value) return
   loadingList.value = true
@@ -1988,8 +2038,8 @@ async function openChat(s: SessionMeta, requestedPiLeaf?: string) {
       existing.session = s
     }
     existing.loadingMsgs = true
-    loadSessionTab(existing, existing.agent, s.path, requestedPiLeaf ?? existing.piLeafId).catch(() => {})
     setActiveViewTab(existing.uiId)
+    await loadSessionTab(existing, existing.agent, s.path, requestedPiLeaf ?? existing.piLeafId).catch(() => {})
     return
   }
   const tab = createViewTab({
@@ -2007,7 +2057,8 @@ async function openChat(s: SessionMeta, requestedPiLeaf?: string) {
     try {
       // loadSessionTab 已经挂过 watcher 了；这里是幂等重入，只为兜住「加载期间用户
       // 又切走再切回」的时序。带上条数，后端不会再解析一遍。
-      await api.watchSession(openAgent, s.path, tab.msgs.length)
+      const knownCount = openAgent === 'pi' ? tab.piMessageCount : tab.msgs.length
+      await api.watchSession(openAgent, s.path, knownCount)
       const ageMs = Date.now() - (s.modified ?? 0)
       if (ageMs >= 0 && ageMs < LIVE_FRESH_MS) {
         tab.liveTailing = true
@@ -2028,6 +2079,51 @@ async function openChat(s: SessionMeta, requestedPiLeaf?: string) {
   }
 }
 
+/** Add a read-only session tab without activating it, leaving the current list/view in place. */
+async function openChatInBackground(s: SessionMeta): Promise<void> {
+  const openAgent = agent.value
+  const openProjectKey = activeDir.value ?? ''
+  const openPaneId = focusedPane.value?.id
+  const existing = findViewTab(t =>
+    (t.type === 'session' && t.session?.path === s.path) ||
+    (t.type === 'chat' && (t.sourceSession?.path === s.path || t.chatSession?.sessionId === s.id))
+  )
+  if (existing) return
+
+  let tab!: ViewTab
+  suppressActivation(() => {
+    tab = createViewTab({
+      type: 'session',
+      agent: openAgent,
+      projectKey: openProjectKey,
+      paneId: openPaneId,
+      title: s.title,
+      session: s,
+      loadingMsgs: true,
+    })
+  })
+  await nextTick()
+  try {
+    // Background tabs are fully loaded now; the active-session watcher will start
+    // if and when the user activates this tab.
+    await loadSessionTab(tab, openAgent, s.path, undefined, false)
+    if (findViewTab(candidate => candidate.uiId === tab.uiId) !== tab) return
+    const ageMs = Date.now() - (s.modified ?? 0)
+    if (ageMs >= 0 && ageMs < LIVE_FRESH_MS) {
+      tab.liveTailing = true
+      tab.liveFadeTimer = window.setTimeout(() => {
+        tab.liveTailing = false
+      }, LIVE_STALE_MS)
+    }
+    if (openProjectKey) recordView({ agent: openAgent, dir: openProjectKey, session: s, mode: 'read' })
+  } catch (error) {
+    if (findViewTab(candidate => candidate.uiId === tab.uiId) === tab) {
+      notify(t('toast.readFail', { e: String(error) }), true)
+      removeViewTab(tab.uiId)
+    }
+  }
+}
+
 /** Load a read-only tab without mutating Pi's append-only transcript. Pi gets
  * its tree and the selected lineage together; all other agents use read_session. */
 async function loadSessionTab(
@@ -2035,28 +2131,48 @@ async function loadSessionTab(
   sourceAgent: Agent,
   path: string,
   requestedLeaf?: string | null,
+  startWatcher = true,
 ) {
   if (sourceAgent === 'pi') {
     try {
-      const tree = await api.sessionTree(sourceAgent, path)
-      tab.piTree = tree
-      const leaf = requestedLeaf || tree[tree.length - 1]?.id || null
-      tab.piLeafId = leaf
-      setTabMsgs(tab, await api.readSession(sourceAgent, path, leaf ?? undefined))
-    } catch {
+      const page = await api.readPiSessionPage(path, {
+        leafId: requestedLeaf ?? undefined,
+        limit: 120,
+        includeTree: true,
+      })
+      if (page.tree) tab.piTree = page.tree
+      tab.piLeafId = page.selectedLeafId ?? page.tree?.[page.tree.length - 1]?.id ?? null
+      tab.piHasOlder = page.hasOlder
+      tab.piOlderCursor = page.olderCursor ?? null
+      tab.piLoadingOlder = false
+      tab.piMessageCount = page.messageCount
+      tab.piStats = { user: page.userCount, assistant: page.assistantCount }
+      setTabMsgs(tab, page.messages)
+    } catch (error) {
       tab.piTree = null
       tab.piLeafId = null
-      setTabMsgs(tab, await api.readSession(sourceAgent, path))
+      tab.piHasOlder = false
+      tab.piOlderCursor = null
+      tab.piMessageCount = 0
+      tab.piStats = null
+      throw error
     }
   } else {
+    tab.piTree = null
+    tab.piLeafId = null
+    tab.piHasOlder = false
+    tab.piOlderCursor = null
+    tab.piLoadingOlder = false
+    tab.piMessageCount = 0
+    tab.piStats = null
     setTabMsgs(tab, await api.readSession(sourceAgent, path))
   }
   tab.loadingMsgs = false
-  // 刚读完盘，这里是唯一能确定「前端手上有多少条」的地方 —— 顺手把 live tail 挂上并
-  // 把条数交给后端当基准，省掉后端为了建基准再整份解析一遍同一个文件（打开一个
-  // 160 MB 的会话原本要解析两遍）。只给当前正在看的 tab 挂：后端同一时刻只追一个会话。
-  if (tab.uiId === activeViewTabId.value) {
-    api.watchSession(sourceAgent, path, tab.msgs.length).catch(() => {})
+  // 刚读完盘，这里有该分支的完整消息数（Pi 页面只装载最近一段）—— 把准确基准交给
+  // watcher，避免把尚未分页装入的历史误判成新消息。只给当前正在看的 tab 挂：后端同一时刻只追一个会话。
+  if (startWatcher && tab.uiId === activeViewTabId.value && !tab.trashAgent && !tab.importedAgent) {
+    const knownCount = sourceAgent === 'pi' ? tab.piMessageCount : tab.msgs.length
+    api.watchSession(sourceAgent, path, knownCount).catch(() => {})
   }
 }
 
@@ -2099,14 +2215,118 @@ async function switchPiLeaf(leafId: string) {
   if (tab.piLeafId === leafId) return
   tab.loadingMsgs = true
   try {
-    setTabMsgs(tab, await api.readSession('pi', tab.session.path, leafId))
-    tab.piLeafId = leafId
+    const page = await api.readPiSessionPage(tab.session.path, {
+      leafId,
+      limit: 120,
+      includeTree: false,
+    })
+    setTabMsgs(tab, page.messages)
+    tab.piLeafId = page.selectedLeafId ?? leafId
+    tab.piHasOlder = page.hasOlder
+    tab.piOlderCursor = page.olderCursor ?? null
+    tab.piLoadingOlder = false
+    tab.piMessageCount = page.messageCount
+    tab.piStats = { user: page.userCount, assistant: page.assistantCount }
     persistViewTabs()
+    api.watchSession('pi', tab.session.path, page.messageCount).catch(() => {})
   } catch (e) {
     notify(`Pi branch read failed: ${String(e)}`, true)
   } finally {
     tab.loadingMsgs = false
   }
+}
+
+const piPageLoads = new Map<number, Promise<void>>()
+const piFullLoads = new Map<number, Promise<void>>()
+
+function loadOlderPiPage(tabUiId: number, limit = 120): Promise<void> {
+  const pending = piPageLoads.get(tabUiId)
+  if (pending) return pending
+  const tab = viewTabs.value.find((item) => item.uiId === tabUiId)
+  if (!tab || tab.type !== 'session' || tab.agent !== 'pi' || !tab.session || !tab.piHasOlder || !tab.piOlderCursor) {
+    return Promise.resolve()
+  }
+
+  tab.piLoadingOlder = true
+  const task = (async () => {
+    const page = await api.readPiSessionPage(tab.session!.path, {
+      leafId: tab.piLeafId ?? undefined,
+      beforeEntryId: tab.piOlderCursor ?? undefined,
+      limit,
+      includeTree: false,
+    })
+    if (page.messages.length) setTabMsgs(tab, [...page.messages, ...tab.msgs])
+    tab.piHasOlder = page.hasOlder
+    tab.piOlderCursor = page.olderCursor ?? null
+    tab.piMessageCount = page.messageCount
+    tab.piStats = { user: page.userCount, assistant: page.assistantCount }
+  })().finally(() => {
+    tab.piLoadingOlder = false
+    piPageLoads.delete(tabUiId)
+  })
+  piPageLoads.set(tabUiId, task)
+  return task
+}
+
+function loadAllPiHistory(tabUiId: number): Promise<void> {
+  const pending = piFullLoads.get(tabUiId)
+  if (pending) return pending
+  const task = (async () => {
+    const tab = viewTabs.value.find((item) => item.uiId === tabUiId)
+    if (!tab || tab.type !== 'session' || tab.agent !== 'pi' || !tab.session) return
+    const inFlightPage = piPageLoads.get(tabUiId)
+    if (inFlightPage) await inFlightPage
+    if (!tab.piHasOlder || !tab.piOlderCursor) return
+
+    tab.piLoadingOlder = true
+    try {
+      const olderPages: Msg[][] = []
+      let hasOlder: boolean = tab.piHasOlder
+      let cursor: string | null = tab.piOlderCursor
+      let messageCount: number = tab.piMessageCount
+      let stats: { user: number; assistant: number } | null = tab.piStats
+      while (hasOlder && cursor) {
+        const previousCursor: string = cursor
+        const page = await api.readPiSessionPage(tab.session.path, {
+          leafId: tab.piLeafId ?? undefined,
+          beforeEntryId: previousCursor,
+          limit: 1_000,
+          includeTree: false,
+        })
+        if (page.messages.length) olderPages.push(page.messages)
+        hasOlder = page.hasOlder
+        cursor = page.olderCursor ?? null
+        messageCount = page.messageCount
+        stats = { user: page.userCount, assistant: page.assistantCount }
+        if (hasOlder && cursor === previousCursor) {
+          throw new Error('Pi history paging did not advance')
+        }
+      }
+      tab.piHasOlder = hasOlder
+      tab.piOlderCursor = cursor
+      tab.piMessageCount = messageCount
+      tab.piStats = stats
+      if (olderPages.length) {
+        setTabMsgs(tab, [...olderPages.reverse().flat(), ...tab.msgs])
+      }
+    } finally {
+      tab.piLoadingOlder = false
+    }
+  })().finally(() => piFullLoads.delete(tabUiId))
+  piFullLoads.set(tabUiId, task)
+  return task
+}
+
+function requestOlderPiPage(tabUiId: number) {
+  void loadOlderPiPage(tabUiId).catch((error) => {
+    notify(t('toast.readFail', { e: String(error) }), true)
+  })
+}
+
+function requestAllPiHistory(tabUiId: number) {
+  void loadAllPiHistory(tabUiId).catch((error) => {
+    notify(t('toast.readFail', { e: String(error) }), true)
+  })
 }
 
 // 导出历史视图入口（侧栏按钮）—— 和回收站 / 统计 / 价格互斥；再点一次同一按钮收起。
@@ -2216,7 +2436,7 @@ async function openHistorySession(rec: ExportRecord) {
   })
   setActiveViewTab(tab.uiId)
   try {
-    setTabMsgs(tab, await api.readSession(rec.agent, rec.path))
+    await loadSessionTab(tab, rec.agent, rec.path)
   } catch (e) {
     notify(t('toast.readFail', { e: String(e) }), true)
     removeViewTab(tab.uiId)
@@ -2297,7 +2517,7 @@ async function openTrashSession(item: TrashItem) {
     loadingMsgs: true,
   })
   try {
-    setTabMsgs(tab, await api.readSession(item.agent, item.trashPath))
+    await loadSessionTab(tab, item.agent, item.trashPath)
   } catch (e) {
     notify(t('toast.readFail', { e: String(e) }), true)
     removeViewTab(tab.uiId)
@@ -2663,6 +2883,15 @@ function getHiddenKeys(sessionPath: string): string[] {
 
 async function exportSession(kind: ExportKind) {
   if (!openSession.value) return
+  const activeTab = activeViewTab.value
+  if (activeTab?.agent === 'pi' && activeTab.piHasOlder) {
+    try {
+      await loadAllPiHistory(activeTab.uiId)
+    } catch (error) {
+      notify(t('toast.readFail', { e: String(error) }), true)
+      return
+    }
+  }
   const s = openSession.value
   const a = chatAgent.value
   try {
@@ -2722,6 +2951,7 @@ function startTuiTitleSyncTimer() {
   window.clearInterval(tuiTitleSyncTimer)
   tuiTitleSyncTimer = window.setInterval(() => {
     syncTuiTitlesNow()
+    syncPiSessionListNow()
   }, TUI_TITLE_SYNC_INTERVAL_MS)
 }
 function onTuiViewTabClick(uiId: number) {
@@ -2991,6 +3221,13 @@ function closeLiveChat(tabUiId?: number) {
   void removeViewTab(id)
 }
 
+/** 返回会话列表但保留 live Chat tab 和后台进程；重新打开时回到同一轮实时状态。 */
+function backFromLiveChat() {
+  if (activeViewTab.value?.type !== 'chat') return
+  setActiveViewTab(null)
+  activeUiId.value = null
+}
+
 async function switchLiveChatToRead() {
   const tab = activeViewTab.value
   if (!tab || tab.type !== 'chat') return
@@ -3082,6 +3319,9 @@ function resumeChatFromSession(s: SessionMeta): Promise<void> {
 }
 
 async function resumeChatFromSessionOnce(s: SessionMeta, agent: Agent) {
+  // If a Chat tab was explicitly closed, wait until its async stop releases the writer
+  // before restarting the same source thread from the list.
+  await waitForChatClose(agent, s.id)
   // 已有同 sessionId 的 chat tab → 直接切过去
   const existingChat = findViewTab(t => t.type === 'chat' && t.chatSession?.sessionId === s.id)
   if (existingChat) {
@@ -3145,7 +3385,9 @@ async function resumeChatFromSessionOnce(s: SessionMeta, agent: Agent) {
     sessionId: s.id,
     title: s.title,
     created: s.created,
-    model: lastAssistantModel(preload),
+    // Codex startup resolves current custom-provider config before transcript
+    // history. A historical model is metadata, not an explicit user override.
+    model: agent === 'codex' ? undefined : lastAssistantModel(preload),
     preloadMsgs: preload,
     initialUsage,
     onReady(chatSession) {
@@ -3783,6 +4025,7 @@ function onClearTabs() {
 const windowFocused = ref(document.hasFocus())
 async function onFocus() {
   windowFocused.value = true
+  void syncPiSessionListNow(true)
   const activeTuiTab = currentActiveTab()
   if (activeTuiTab) markTabViewed(activeTuiTab.uiId)
   clearPendingLiveNotification()
@@ -4383,8 +4626,9 @@ async function openDesktopPetSession(target: DesktopPetSessionTarget) {
     existingView.loadingMsgs = true
     setActiveViewTab(existingView.uiId)
     try {
-      setTabMsgs(existingView, await api.readSession(target.agent, target.path))
-      await api.watchSession(target.agent, target.path, existingView.msgs.length).catch(() => {})
+      await loadSessionTab(existingView, target.agent, target.path, existingView.piLeafId)
+      const knownCount = target.agent === 'pi' ? existingView.piMessageCount : existingView.msgs.length
+      await api.watchSession(target.agent, target.path, knownCount).catch(() => {})
       opened = true
     } catch (error) {
       notify(t('toast.readFail', { e: String(error) }), true)
@@ -4402,8 +4646,9 @@ async function openDesktopPetSession(target: DesktopPetSessionTarget) {
     })
     await nextTick()
     try {
-      setTabMsgs(tab, await api.readSession(target.agent, target.path))
-      await api.watchSession(target.agent, target.path, tab.msgs.length).catch(() => {})
+      await loadSessionTab(tab, target.agent, target.path)
+      const knownCount = target.agent === 'pi' ? tab.piMessageCount : tab.msgs.length
+      await api.watchSession(target.agent, target.path, knownCount).catch(() => {})
       opened = true
       recordView({
         agent: target.agent,
@@ -4502,6 +4747,15 @@ async function onGlobalSearchOpen(hit: SearchHit) {
   }
   await openChat(hit.session, hit.piLeafId)
   if (hit.matchedField === 'text' && typeof hit.matchMsgIndex === 'number') {
+    const tab = activeViewTab.value
+    if (tab?.agent === 'pi' && tab.piHasOlder) {
+      try {
+        await loadAllPiHistory(tab.uiId)
+      } catch (error) {
+        notify(t('toast.readFail', { e: String(error) }), true)
+        return
+      }
+    }
     for (let i = 0; i < 10; i++) {
       await nextTick()
       if (chatViewRef.value) break
@@ -4530,6 +4784,7 @@ provide<PaneActions>(PaneActionsKey, {
   newGuiSession,
   newShellSession,
   hydrateSavedTab: (saved) => { void hydrateSavedTabOnce(saved) },
+  backFromLiveChat,
   closeLiveChat,
   openRenameLiveChat,
   forkLiveChat,
@@ -4541,6 +4796,7 @@ provide<PaneActions>(PaneActionsKey, {
   deleteFromLiveChat,
   closeActiveViewTab,
   openChat,
+  openChatInBackground,
   deleteSession,
   resumeHere,
   resumeChatFromSession,
@@ -4550,6 +4806,8 @@ provide<PaneActions>(PaneActionsKey, {
   restore,
   openSessionStats,
   switchPiLeaf,
+  loadOlderPiPage: requestOlderPiPage,
+  loadAllPiHistory: requestAllPiHistory,
   reveal,
   chatFromList,
   notifyArchivedBlock,

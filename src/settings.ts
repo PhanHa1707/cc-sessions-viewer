@@ -24,6 +24,7 @@ const ENABLED_AGENTS_KEY = 'enabledAgents:v1'
 const QUICK_OPEN_KEY = 'quickOpenTarget:v1'
 const USE_RECLAUDE_KEY = 'useReclaude:v1'
 const SHOW_TOOL_CALLS_KEY = 'showToolCalls:v1'
+const SHOW_THINKING_KEY = 'showThinking:v1'
 const EXPORT_SHOW_MESSAGE_TIME_KEY = 'exportShowMessageTime:v1'
 const LEGACY_EXPORT_HTML_SHOW_MESSAGE_TIME_KEY = 'exportHtmlShowMessageTime:v1'
 const CHAT_SPACING_KEY = 'chatSpacing:v1'
@@ -89,6 +90,14 @@ export const showToolCalls = ref(localStorage.getItem(SHOW_TOOL_CALLS_KEY) === '
 export function setShowToolCalls(v: boolean) {
   showToolCalls.value = v
   localStorage.setItem(SHOW_TOOL_CALLS_KEY, v ? '1' : '0')
+}
+
+/** Whether normalized reasoning blocks are included in chat transcripts. Default on to preserve
+ * the existing behavior; the transcript groups adjacent blocks into one folded summary row. */
+export const showThinking = ref(localStorage.getItem(SHOW_THINKING_KEY) !== '0')
+export function setShowThinking(v: boolean) {
+  showThinking.value = v
+  localStorage.setItem(SHOW_THINKING_KEY, v ? '1' : '0')
 }
 
 /** 导出默认附带创建和消息时间；关闭后只影响导出文件，不影响详情页。 */

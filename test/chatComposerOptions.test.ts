@@ -77,6 +77,8 @@ describe('chatComposerOptions', () => {
   it('Claude 模型用完整标准 id（主列表 + More），且一律不带 [1m]', () => {
     expect(CHAT_MODEL_MENU.claude.primary.map((m) => m.value)).toEqual([
       'claude-fable-5-1',
+      'claude-opus-5-5',
+      'claude-sonnet-5-5',
       'claude-opus-5',
       'claude-sonnet-5',
       'claude-haiku-4-5-20251001',
@@ -114,12 +116,12 @@ describe('chatComposerOptions', () => {
     ).toBe('Opus (mimo-v2.5-pro)')
   })
 
-  it('autoPickModel：Fable 5.1 需 credits 不作新会话默认，订阅落到 Opus 5，alias 照常取 opus', () => {
+  it('autoPickModel：Fable 5.1 需 credits 不作新会话默认，订阅落到 Opus 5.5，alias 照常取 opus', () => {
     expect(requiresCredits('claude-fable-5-1')).toBe(true)
     expect(requiresCredits('claude-fable-5')).toBe(true)
     expect(requiresCredits('claude-opus-5')).toBe(false)
-    // 订阅：primary[0] 是烧额度的 Fable 5.1 → 跳过 → 第一个不烧额度的 Opus 5
-    expect(autoPickModel('claude')).toBe('claude-opus-5')
+    // 订阅：primary[0] 是烧额度的 Fable 5.1 → 跳过 → 第一个不烧额度的 Opus 5.5
+    expect(autoPickModel('claude')).toBe('claude-opus-5-5')
     // alias 模式：primary[0] 是 opus 别名（不烧额度）→ 照常返回
     expect(autoPickModel('claude', { claudeAliasMode: true })).toBe('opus')
   })
@@ -156,6 +158,7 @@ describe('chatComposerOptions', () => {
 
   it('modelLabel / effortLabel：命中返回展示名，未知回退原值', () => {
     expect(modelLabel('claude', 'claude-opus-5')).toBe('Opus 5')
+    expect(modelLabel('claude', 'claude-opus-5-5')).toBe('Opus 5.5')
     expect(modelLabel('claude', 'claude-opus-4-8')).toBe('Opus 4.8')
     expect(modelLabel('claude', 'claude-opus-4-7')).toBe('Opus 4.7')
     expect(modelLabel('claude', 'opus')).toBe('Opus')
@@ -174,11 +177,12 @@ describe('chatComposerOptions', () => {
     expect(effortLabel('low')).toBe('Low')
   })
 
-  it('effortLevelsFor：Fable 5.1 / Fable 5 / Opus 5 / Opus 4.7 / 4.8 在 max 后多一档 ultracode，其余模型只有基础五档', () => {
+  it('effortLevelsFor：Fable 5.1 / Fable 5 / Opus 5.5 / Opus 5 / Opus 4.7 / 4.8 在 max 后多一档 ultracode，其余模型只有基础五档', () => {
     const base = ['low', 'medium', 'high', 'xhigh', 'max']
     expect(effortLevelsFor('claude', 'claude-fable-5-1')).toEqual([...base, 'ultracode'])
     expect(effortLevelsFor('claude', 'claude-fable-5')).toEqual([...base, 'ultracode'])
     expect(effortLevelsFor('claude', 'claude-opus-5')).toEqual([...base, 'ultracode'])
+    expect(effortLevelsFor('claude', 'claude-opus-5-5')).toEqual([...base, 'ultracode'])
     expect(effortLevelsFor('claude', 'claude-opus-4-8')).toEqual([...base, 'ultracode'])
     expect(effortLevelsFor('claude', 'claude-opus-4-7')).toEqual([...base, 'ultracode'])
     expect(effortLevelsFor('claude', 'claude-opus-4-6')).toEqual(base)
@@ -186,6 +190,7 @@ describe('chatComposerOptions', () => {
     expect(effortLevelsFor('claude', undefined)).toEqual(base)
     expect(effortLevelsFor('codex', 'gpt-5.5')).toEqual(['low', 'medium', 'high', 'xhigh'])
     expect(effortLevelsFor('codex', 'gpt-5.6-luna')).toEqual(['low', 'medium', 'high', 'xhigh', 'max'])
+    expect(effortLevelsFor('codex', 'gpt-6-luna')).toEqual(['low', 'medium', 'high', 'xhigh', 'max'])
     expect(effortLevelsFor('codex', 'gpt-5.6-terra')).toEqual(['low', 'medium', 'high', 'xhigh', 'max', 'ultra'])
     expect(effortLevelsFor('codex', 'gpt-5.6-sol')).toEqual(['low', 'medium', 'high', 'xhigh', 'max', 'ultra'])
     expect(effortLevelsFor('codex', 'gpt-6-astra')).toEqual(['low', 'medium', 'high', 'xhigh', 'max', 'ultra'])
@@ -249,14 +254,40 @@ describe('chatComposerOptions', () => {
 
   it('Codex 模型列表：与 codex-cli model/list 一致，无 More 分组', () => {
     expect(CHAT_MODEL_MENU.codex.primary.map((m) => m.value)).toEqual([
+      'gpt-6.1-sol',
+      'gpt-6-sol',
       'gpt-6-astra',
-      'gpt-5.6-sol',
+      'gpt-6-luna',
       'gpt-5.6-terra',
+      'gpt-5.6-sol',
       'gpt-5.6-luna',
       'gpt-5.5',
     ])
     expect(CHAT_MODEL_MENU.codex.more).toEqual([])
     expect(CHAT_MODEL_MENU.codex.showFastMode).toBe(false)
+  })
+
+  it('Codex configured third-party model is selectable with its original request ID', () => {
+    const opts = { codexConfiguredModel: 'minimax-m3' }
+    const menu = modelMenuFor('codex', opts)
+    expect(menu.primary[0]).toEqual({ value: 'minimax-m3', label: 'minimax-m3' })
+    expect(allModels('codex', opts).some((m) => m.value === 'minimax-m3')).toBe(true)
+    expect(modelLabel('codex', 'minimax-m3', opts)).toBe('minimax-m3')
+    expect(CHAT_MODEL_MENU.codex.primary.some((m) => m.value === 'minimax-m3')).toBe(false)
+    expect(modelMenuFor('codex')).toBe(CHAT_MODEL_MENU.codex)
+  })
+
+  it('Codex configured official IDs do not duplicate or rename standard menu items', () => {
+    const menu = modelMenuFor('codex', { codexConfiguredModel: 'gpt-6-sol' })
+    expect(menu).toBe(CHAT_MODEL_MENU.codex)
+    expect(menu.primary.filter((m) => m.value === 'gpt-6-sol')).toHaveLength(1)
+    expect(modelLabel('codex', 'gpt-6-sol', { codexConfiguredModel: 'gpt-6-sol' })).toBe('GPT-6-Sol')
+  })
+
+  it('Codex ignores blank configured models and keeps configuration isolated to Codex', () => {
+    expect(modelMenuFor('codex', { codexConfiguredModel: '  ' })).toBe(CHAT_MODEL_MENU.codex)
+    expect(modelMenuFor('claude', { codexConfiguredModel: 'minimax-m3' })).toBe(CHAT_MODEL_MENU.claude)
+    expect(modelMenuFor('codex', { codexConfiguredModel: '  minimax-m3  ' }).primary[0].value).toBe('minimax-m3')
   })
 
   it('Codex modelLabel 返回展示名', () => {
@@ -306,9 +337,9 @@ describe('chatComposerOptions', () => {
       expect(sanitizeModel('codex', 'gpt-5.5')).toBe('gpt-5.5')
     })
 
-    it('claude 不在菜单的模型 → 回退 opus-5', () => {
-      expect(sanitizeModel('claude', 'claude-opus-4-5')).toBe('claude-opus-5')
-      expect(sanitizeModel('claude', 'gpt-5.3-codex')).toBe('claude-opus-5')
+    it('claude 不在菜单的模型 → 回退 opus-5-5', () => {
+      expect(sanitizeModel('claude', 'claude-opus-4-5')).toBe('claude-opus-5-5')
+      expect(sanitizeModel('claude', 'gpt-5.3-codex')).toBe('claude-opus-5-5')
     })
 
     it('claude 在菜单内(含 alias 档)的模型原样保留', () => {

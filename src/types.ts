@@ -43,6 +43,17 @@ export interface PiTreeNode {
   terminal: boolean
 }
 
+export interface PiSessionPage {
+  messages: Msg[]
+  tree?: PiTreeNode[] | null
+  selectedLeafId?: string | null
+  olderCursor?: string | null
+  hasOlder: boolean
+  messageCount: number
+  userCount: number
+  assistantCount: number
+}
+
 export interface SessionPage {
   total: number
   sessions: SessionMeta[]

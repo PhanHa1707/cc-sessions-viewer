@@ -203,13 +203,17 @@ async function codexRuntimeForAgent(agent: Agent): Promise<CodexRuntimeInfo | nu
     .catch(() => null)
 }
 
-function isFreshCodexChat(opts: StartChatOptions): boolean {
-  return opts.agent === 'codex' && !opts.sessionId && !opts.forkSessionId && !opts.fork
-}
-
-function initialChatModel(agent: Agent, model: string | undefined, codexRuntime: CodexRuntimeInfo | null): string | undefined {
-  if (agent === 'codex' && codexRuntime?.usesApiKey) return model ?? codexRuntime.model
-  return sanitizeModel(agent, model) ?? defaultModel(agent)
+function initialChatModel(opts: StartChatOptions, codexRuntime: CodexRuntimeInfo | null): string | undefined {
+  const { agent, model } = opts
+  const historicalModel = agent === 'codex' ? lastAssistantModel(opts.preloadMsgs) : undefined
+  if (agent === 'codex' && codexRuntime?.usesApiKey) {
+    // An explicit pick (including a fork's settings) wins. Otherwise the current
+    // global config is authoritative, even when reopening an older transcript.
+    // Never sanitize a third-party model through the official GPT-only menu.
+    const configuredModel = codexRuntime.model?.trim() || undefined
+    return model ?? configuredModel ?? historicalModel
+  }
+  return sanitizeModel(agent, model ?? historicalModel ?? rememberedChatModel(agent)) ?? defaultModel(agent)
 }
 
 function initialChatEffort(agent: Agent, effort: string | undefined, codexRuntime: CodexRuntimeInfo | null): string | undefined {
@@ -235,6 +239,19 @@ export function chatEffectiveEffortForTest(
 
 export const chatSessions = ref<ChatSession[]>([])
 export const activeChatUiId = ref<number | null>(null)
+const chatCloseByUiId = new Map<number, Promise<void>>()
+const chatCloseBySourceSession = new Map<string, Promise<void>>()
+
+function chatSourceSessionKey(agent: Agent, sessionId: string): string {
+  return `${agent}\0${sessionId}`
+}
+
+/** Wait for a previous GUI Chat for this source thread to fully stop before reopening it. */
+export async function waitForChatClose(agent: Agent, sessionId: string): Promise<void> {
+  if (!sessionId) return
+  const pending = chatCloseBySourceSession.get(chatSourceSessionKey(agent, sessionId))
+  if (pending) await pending
+}
 /** 模块级时钟 —— 任一会话 running 时每 250ms 跳一次，驱动「✳ 4s」计时显示。 */
 export const now = ref<number>(0)
 let nextUiId = 1
@@ -1158,12 +1175,12 @@ export async function startChat(opts: StartChatOptions): Promise<ChatSession> {
   await ensureListeners()
 
   const uiId = nextUiId++
-  const codexRuntime = isFreshCodexChat(opts) ? await codexRuntimeForAgent(opts.agent) : null
+  const codexRuntime = await codexRuntimeForAgent(opts.agent)
   const initialPermissionMode = opts.permissionMode ?? rememberedChatPermissionMode(opts.agent)
-  const initialModel = initialChatModel(opts.agent, opts.model ?? rememberedChatModel(opts.agent), codexRuntime)
+  const initialModel = initialChatModel(opts, codexRuntime)
   const initialEffort = initialChatEffort(
     opts.agent,
-    opts.effort ?? rememberedChatEffort(opts.agent, initialModel),
+    opts.effort ?? (codexRuntime?.usesApiKey ? undefined : rememberedChatEffort(opts.agent, initialModel)),
     codexRuntime,
   )
   const session = reactive<ChatSession>({
@@ -1614,10 +1631,30 @@ export async function clearChat(session: ChatSession): Promise<void> {
 }
 
 /** 关闭并回收一个 chat 会话：停进程、解路由、从列表移除。 */
-export async function closeChat(uiId: number): Promise<void> {
-  const idx = chatSessions.value.findIndex((c) => c.uiId === uiId)
-  if (idx === -1) return
-  const session = chatSessions.value[idx]
+export function closeChat(uiId: number): Promise<void> {
+  const pending = chatCloseByUiId.get(uiId)
+  if (pending) return pending
+  const session = chatSessions.value.find((c) => c.uiId === uiId)
+  if (!session) return Promise.resolve()
+
+  const sourceKey = session.sessionId
+    ? chatSourceSessionKey(session.agent, session.sessionId)
+    : null
+  const closing = closeChatNow(uiId, session)
+  chatCloseByUiId.set(uiId, closing)
+  if (sourceKey) chatCloseBySourceSession.set(sourceKey, closing)
+
+  const clear = () => {
+    if (chatCloseByUiId.get(uiId) === closing) chatCloseByUiId.delete(uiId)
+    if (sourceKey && chatCloseBySourceSession.get(sourceKey) === closing) {
+      chatCloseBySourceSession.delete(sourceKey)
+    }
+  }
+  void closing.then(clear, clear)
+  return closing
+}
+
+async function closeChatNow(uiId: number, session: ChatSession): Promise<void> {
   cancelScheduledResume(session)
   if (session.chatId !== null) {
     sessionsByChatId.delete(session.chatId)
@@ -1628,6 +1665,8 @@ export async function closeChat(uiId: number): Promise<void> {
       /* 幂等：已死的 id 也安全 */
     }
   }
+  const idx = chatSessions.value.findIndex((c) => c.uiId === uiId)
+  if (idx === -1) return
   chatSessions.value.splice(idx, 1)
   if (activeChatUiId.value === uiId) {
     activeChatUiId.value = chatSessions.value.length ? chatSessions.value[0].uiId : null

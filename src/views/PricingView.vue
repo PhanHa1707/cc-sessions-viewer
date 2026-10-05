@@ -69,7 +69,7 @@ async function onRefresh() {
 
 onMounted(load)
 
-// 按 family 分桶 —— 后端已排好序（family, input 升序），这里仅做分组。
+// 按 family 分桶 —— 后端已按 family、模型版本倒序排好，这里仅做分组。
 type Family = 'claude' | 'codex' | 'grok' | 'agy' | 'opencode'
 const FAMILIES: { key: Family; icon: Component; label: string }[] = [
   { key: 'claude', icon: IconClaude, label: 'pricing.family.claude' },
@@ -113,9 +113,10 @@ const grouped = computed(() => {
 })
 
 // $/token → $/Mtok（用户熟悉的"每百万 tokens 多少美元"刻度），保留 2~3 位
-// 小数；0 显示为占位符 — 表里很多模型 cache_write 没列价 = 不收费 / 未公开。
-function fmtRate(perToken: number): string {
-  if (!perToken || perToken <= 0) return t('pricing.unavailable')
+// 小数；输入/输出为 0 表示免费。缓存未公布单价时后端也返回 0，保留占位符。
+function fmtRate(perToken: number, showZero = false): string {
+  if (!Number.isFinite(perToken) || perToken < 0) return t('pricing.unavailable')
+  if (perToken === 0) return showZero ? '$0.00' : t('pricing.unavailable')
   const perMtok = perToken * 1_000_000
   // 小于 $0.10/Mtok 用 3 位小数，其它 2 位足够
   return perMtok < 0.1 ? `$${perMtok.toFixed(3)}` : `$${perMtok.toFixed(2)}`
@@ -346,8 +347,8 @@ async function settleAfterLoad() {
         >
           <span class="pricing-cell pricing-cell-model" role="cell">{{ row.name }}</span>
           <span class="pricing-cell pricing-cell-num" role="cell">{{ fmtContext(row.context) }}</span>
-          <span class="pricing-cell pricing-cell-num" role="cell">{{ fmtRate(row.input) }}</span>
-          <span class="pricing-cell pricing-cell-num" role="cell">{{ fmtRate(row.output) }}</span>
+          <span class="pricing-cell pricing-cell-num" role="cell">{{ fmtRate(row.input, true) }}</span>
+          <span class="pricing-cell pricing-cell-num" role="cell">{{ fmtRate(row.output, true) }}</span>
           <span class="pricing-cell pricing-cell-num" role="cell">{{ fmtRate(row.cacheRead) }}</span>
           <span class="pricing-cell pricing-cell-num" role="cell">{{ fmtRate(row.cacheWrite) }}</span>
         </div>

@@ -29,6 +29,29 @@ describe('ChatModelMenu', () => {
     expect(checked[0].text()).toContain('Sonnet 5')
   })
 
+  it('shows and checkmarks the configured Codex model, emitting the exact model ID on pick', async () => {
+    const wrapper = mount(ChatModelMenu, {
+      props: {
+        agent: 'codex',
+        selected: undefined,
+        displayValue: 'minimax-m3',
+        menuOptions: { codexConfiguredModel: 'minimax-m3' },
+      },
+      global: { directives: { tooltip: vTooltip } },
+    })
+    try {
+      expect(wrapper.find('.mm-trigger').text()).toContain('minimax-m3')
+      await wrapper.find('.mm-trigger').trigger('click')
+      const checked = wrapper.findAll('.mm-item.active')
+      expect(checked).toHaveLength(1)
+      expect(checked[0].text()).toContain('minimax-m3')
+      await checked[0].trigger('click')
+      expect(wrapper.emitted('pick')).toEqual([['minimax-m3']])
+    } finally {
+      wrapper.unmount()
+    }
+  })
+
   it('shows the real mapped model name for Claude alias menu items', async () => {
     const wrapper = mount(ChatModelMenu, {
       props: {

@@ -6,11 +6,14 @@
 
 use std::collections::{HashMap, HashSet};
 use std::fs;
+use std::io::{BufRead, BufReader, Cursor, Read, Seek, SeekFrom};
 use std::path::{Component, Path, PathBuf};
+use std::sync::{Arc, Mutex, OnceLock};
 use std::thread;
 use std::time::{Duration, SystemTime};
 
 use chrono::DateTime;
+use serde::{de::IgnoredAny, Deserialize};
 use serde_json::Value;
 
 use super::SessionSource;
@@ -18,8 +21,8 @@ use crate::agent_command::AgentCommand;
 use crate::stats::pricing;
 use crate::stats::types::{CostSource, Turn};
 use crate::types::{
-    Block, Msg, PiTodoSummary, PiTodoTask, PiTreeNode, ProjectInfo, SessionMeta, SessionPage,
-    UsageSummary,
+    Block, Msg, PiSessionPage, PiTodoSummary, PiTodoTask, PiTreeNode, ProjectInfo, SessionMeta,
+    SessionPage, UsageSummary,
 };
 use crate::util::{
     append_jsonl_line, clean_title, home, mtime_millis, now_millis, parse_iso8601_ms,
@@ -29,13 +32,18 @@ use crate::util::{
 pub struct PiSource;
 
 const SETTINGS_FILE: &str = "settings.json";
-const MAX_SESSION_BYTES: u64 = 64 * 1024 * 1024;
+// Pi sessions are append-only and can grow into hundreds of MiB. Keep
+// whole-file materialization bounded while allowing long native sessions.
+const MAX_MATERIALIZED_SESSION_BYTES: u64 = 512 * 1024 * 1024;
 const MAX_HEADER_BYTES: u64 = 64 * 1024;
 const MAX_SCAN_FILES: usize = 10_000;
 const MAX_SCAN_DEPTH: usize = 12;
 const SNAPSHOT_RETRIES: usize = 3;
 const SNAPSHOT_RETRY_DELAY: Duration = Duration::from_millis(20);
 const MAX_IMAGE_BYTES: usize = 8 * 1024 * 1024;
+const PI_INITIAL_PAGE_SIZE: usize = 120;
+const PI_PAGE_SIZE_MAX: usize = 1_000;
+const PI_PAGE_RAW_BYTES: u64 = 4 * 1024 * 1024;
 
 #[derive(Clone, Debug)]
 struct PiHeader {
@@ -291,9 +299,6 @@ fn scan_sessions(root: &Path) -> Vec<PiSessionRecord> {
             let Some(metadata) = regular_file(&path) else {
                 continue;
             };
-            if metadata.len() > MAX_SESSION_BYTES {
-                continue;
-            }
             let Ok(canonical) = path.canonicalize() else {
                 continue;
             };
@@ -317,9 +322,6 @@ fn scan_sessions(root: &Path) -> Vec<PiSessionRecord> {
 fn file_revision(path: &Path) -> Result<FileRevision, String> {
     let metadata = regular_file(path)
         .ok_or_else(|| format!("Pi session is not a regular file: {}", path.display()))?;
-    if metadata.len() > MAX_SESSION_BYTES {
-        return Err("Pi session exceeds the safe size limit".to_string());
-    }
     Ok(FileRevision {
         size: metadata.len(),
         modified: metadata.modified().map_err(|e| e.to_string())?,
@@ -330,6 +332,12 @@ fn file_revision(path: &Path) -> Result<FileRevision, String> {
 fn stable_bytes(path: &Path) -> Result<Vec<u8>, String> {
     for attempt in 0..SNAPSHOT_RETRIES {
         let before = file_revision(path)?;
+        if before.size > MAX_MATERIALIZED_SESSION_BYTES {
+            return Err(format!(
+                "Pi session exceeds the {} MiB full-read limit",
+                MAX_MATERIALIZED_SESSION_BYTES / (1024 * 1024)
+            ));
+        }
         let bytes = fs::read(path).map_err(|e| format!("Failed to read Pi session: {e}"))?;
         let after = file_revision(path)?;
         if before == after {
@@ -342,12 +350,256 @@ fn stable_bytes(path: &Path) -> Result<Vec<u8>, String> {
     Err("Pi session changed while reading; retry after its current write completes".to_string())
 }
 
-#[derive(Default)]
+fn stable_parsed_entries(path: &Path) -> Result<ParsedPi, String> {
+    for attempt in 0..SNAPSHOT_RETRIES {
+        let before = file_revision(path)?;
+        if before.size > MAX_MATERIALIZED_SESSION_BYTES {
+            return Err(format!(
+                "Pi session exceeds the {} MiB full-read limit",
+                MAX_MATERIALIZED_SESSION_BYTES / (1024 * 1024)
+            ));
+        }
+        let file =
+            fs::File::open(path).map_err(|error| format!("Failed to open Pi session: {error}"))?;
+        let parsed = parse_entries_reader(BufReader::new(file))?;
+        let after = file_revision(path)?;
+        if before == after {
+            return Ok(parsed);
+        }
+        if attempt + 1 < SNAPSHOT_RETRIES {
+            thread::sleep(SNAPSHOT_RETRY_DELAY);
+        }
+    }
+    Err("Pi session changed while reading; retry after its current write completes".to_string())
+}
+
+fn stable_pi_index(path: &Path) -> Result<Arc<PiIndex>, String> {
+    for attempt in 0..SNAPSHOT_RETRIES {
+        let before = file_revision(path)?;
+        if before.size > MAX_MATERIALIZED_SESSION_BYTES {
+            return Err(format!(
+                "Pi session exceeds the {} MiB full-read limit",
+                MAX_MATERIALIZED_SESSION_BYTES / (1024 * 1024)
+            ));
+        }
+        if let Some((_, cached)) = pi_index_cache()
+            .lock()
+            .map_err(|_| "Pi index cache is unavailable".to_string())?
+            .get(path)
+            .filter(|(revision, _)| *revision == before)
+        {
+            return Ok(Arc::clone(cached));
+        }
+
+        let file =
+            fs::File::open(path).map_err(|error| format!("Failed to open Pi session: {error}"))?;
+        let index = parse_pi_index(BufReader::new(file), before.clone())?;
+        let after = file_revision(path)?;
+        if before == after {
+            let index = Arc::new(index);
+            let mut cache = pi_index_cache()
+                .lock()
+                .map_err(|_| "Pi index cache is unavailable".to_string())?;
+            if cache.len() >= 8 && !cache.contains_key(path) {
+                if let Some(oldest) = cache.keys().next().cloned() {
+                    cache.remove(&oldest);
+                }
+            }
+            cache.insert(path.to_path_buf(), (after, Arc::clone(&index)));
+            return Ok(index);
+        }
+        if attempt + 1 < SNAPSHOT_RETRIES {
+            thread::sleep(SNAPSHOT_RETRY_DELAY);
+        }
+    }
+    Err("Pi session changed while reading; retry after its current write completes".to_string())
+}
+
+fn parse_pi_index<R: BufRead>(mut reader: R, revision: FileRevision) -> Result<PiIndex, String> {
+    let mut version = 3;
+    let mut entries: Vec<PiIndexedEntry> = Vec::new();
+    let mut by_id = HashMap::new();
+    let mut read_path_by_call = HashMap::new();
+    let mut image_results_by_call: HashMap<String, Vec<usize>> = HashMap::new();
+    let mut ordinal = 0usize;
+    let mut offset = 0u64;
+    let mut raw = Vec::new();
+    loop {
+        raw.clear();
+        let bytes_read = reader
+            .read_until(b'\n', &mut raw)
+            .map_err(|error| format!("Failed to read Pi session: {error}"))?;
+        if bytes_read == 0 {
+            break;
+        }
+        let current_ordinal = ordinal;
+        ordinal += 1;
+        let line_offset = offset;
+        offset += bytes_read as u64;
+        let json = raw.strip_suffix(b"\n").unwrap_or(&raw);
+        let json = json.strip_suffix(b"\r").unwrap_or(json);
+        if json.is_empty() {
+            continue;
+        }
+        let wire: PiIndexWireEntry = match serde_json::from_slice(json) {
+            Ok(entry) => entry,
+            Err(_) => continue,
+        };
+        let kind = wire.kind.unwrap_or_else(|| "entry".into());
+        if kind == "session" {
+            // The session header supplies the version used by v1 ordinal IDs and
+            // v2 hook-role normalization. It is intentionally absent from rows.
+            if let Ok(header) = serde_json::from_slice::<Value>(json) {
+                version = header.get("version").and_then(Value::as_u64).unwrap_or(1);
+            }
+            continue;
+        }
+        let id = wire
+            .id
+            .filter(|id| !id.is_empty())
+            .or_else(|| (version == 1).then(|| format!("v1:{current_ordinal}")));
+        let Some(id) = id else { continue };
+        if by_id.contains_key(&id) {
+            continue;
+        }
+        let wire_message = wire
+            .message
+            .as_ref()
+            .and_then(PiIndexWireMessageValue::as_object);
+        let message_role = wire_message.and_then(|message| message.role.as_deref());
+        let tree_kind = if kind == "message" {
+            message_role.unwrap_or("message").to_string()
+        } else {
+            kind.clone()
+        };
+        let role = message_role.map(|role| {
+            if version == 2 && role == "hookMessage" {
+                "custom".to_string()
+            } else {
+                role.to_string()
+            }
+        });
+        let parent_id = wire
+            .parent_id
+            .filter(|parent| !parent.is_empty())
+            .or_else(|| {
+                (version == 1)
+                    .then(|| entries.last().map(|entry| entry.id.clone()))
+                    .flatten()
+            });
+        let display = wire_message
+            .and_then(|message| message.display)
+            .or(wire.display)
+            .unwrap_or(false);
+        let entry_index = entries.len();
+        if let Some(message) = wire_message {
+            if let Some(PiIndexWireContent::Blocks(blocks)) = message.content.as_ref() {
+                if message.role.as_deref() == Some("assistant") {
+                    for block in blocks {
+                        if block.kind.as_deref() != Some("toolCall")
+                            || block.name.as_deref() != Some("read")
+                        {
+                            continue;
+                        }
+                        let (Some(call_id), Some(PiIndexWireArguments::Object(arguments))) =
+                            (block.id.as_ref(), block.arguments.as_ref())
+                        else {
+                            continue;
+                        };
+                        if let Some(path) = arguments.path.as_ref() {
+                            read_path_by_call.insert(call_id.clone(), path.clone());
+                        }
+                    }
+                } else if message.role.as_deref() == Some("toolResult")
+                    && blocks
+                        .iter()
+                        .any(|block| block.kind.as_deref() == Some("image"))
+                {
+                    if let Some(call_id) = message.tool_call_id.as_ref() {
+                        image_results_by_call
+                            .entry(call_id.clone())
+                            .or_default()
+                            .push(entry_index);
+                    }
+                }
+            }
+        }
+        let entry = PiIndexedEntry {
+            id: id.clone(),
+            parent_id,
+            kind,
+            tree_kind,
+            role,
+            timestamp: wire.timestamp,
+            ordinal: entry_index,
+            offset: line_offset,
+            len: json.len() as u64,
+            display,
+        };
+        by_id.insert(id, entry_index);
+        entries.push(entry);
+    }
+
+    let tree = pi_tree_from_index(&entries);
+    Ok(PiIndex {
+        revision,
+        entries,
+        by_id,
+        tree,
+        read_path_by_call,
+        image_results_by_call,
+    })
+}
+
+fn pi_tree_from_index(entries: &[PiIndexedEntry]) -> Vec<PiTreeNode> {
+    let mut children: HashMap<String, Vec<String>> = HashMap::new();
+    for entry in entries {
+        if let Some(parent) = entry.parent_id.as_ref() {
+            children
+                .entry(parent.clone())
+                .or_default()
+                .push(entry.id.clone());
+        }
+    }
+    entries
+        .iter()
+        .map(|entry| {
+            let node_children = children.remove(&entry.id).unwrap_or_default();
+            PiTreeNode {
+                id: entry.id.clone(),
+                parent_id: entry.parent_id.clone(),
+                terminal: node_children.is_empty(),
+                children: node_children,
+                kind: entry.tree_kind.clone(),
+                timestamp: entry.timestamp.clone(),
+                ordinal: entry.ordinal,
+            }
+        })
+        .collect()
+}
+
+#[derive(Clone, Default)]
 struct TreeSummary {
     entry_count: usize,
     branch_count: usize,
     message_count: usize,
     title: Option<String>,
+    last_user_prompt: Option<String>,
+}
+
+#[derive(Clone)]
+struct TreeEntrySummary {
+    id: String,
+    parent_id: Option<String>,
+    is_message: bool,
+    role: Option<String>,
+    fallback_title: Option<String>,
+    user_prompt: Option<String>,
+}
+
+fn tree_summary_cache() -> &'static Mutex<HashMap<PathBuf, (FileRevision, TreeSummary)>> {
+    static CACHE: OnceLock<Mutex<HashMap<PathBuf, (FileRevision, TreeSummary)>>> = OnceLock::new();
+    CACHE.get_or_init(|| Mutex::new(HashMap::new()))
 }
 
 #[derive(Clone)]
@@ -364,12 +616,138 @@ struct ParsedPi {
     duplicate_ids: bool,
 }
 
+#[derive(Deserialize)]
+struct PiIndexWireEntry {
+    #[serde(rename = "type")]
+    kind: Option<String>,
+    id: Option<String>,
+    #[serde(rename = "parentId")]
+    parent_id: Option<String>,
+    timestamp: Option<String>,
+    display: Option<bool>,
+    message: Option<PiIndexWireMessageValue>,
+}
+
+#[derive(Deserialize)]
+#[serde(untagged)]
+enum PiIndexWireMessageValue {
+    Object(PiIndexWireMessage),
+    Other(IgnoredAny),
+}
+
+impl PiIndexWireMessageValue {
+    fn as_object(&self) -> Option<&PiIndexWireMessage> {
+        match self {
+            Self::Object(message) => Some(message),
+            Self::Other(_) => None,
+        }
+    }
+}
+
+#[derive(Deserialize)]
+struct PiIndexWireMessage {
+    role: Option<String>,
+    #[serde(rename = "toolCallId")]
+    tool_call_id: Option<String>,
+    display: Option<bool>,
+    content: Option<PiIndexWireContent>,
+}
+
+#[derive(Deserialize)]
+#[serde(untagged)]
+enum PiIndexWireContent {
+    Blocks(Vec<PiIndexWireBlock>),
+    Other(IgnoredAny),
+}
+
+#[derive(Deserialize)]
+struct PiIndexWireBlock {
+    #[serde(rename = "type")]
+    kind: Option<String>,
+    id: Option<String>,
+    name: Option<String>,
+    arguments: Option<PiIndexWireArguments>,
+}
+
+#[derive(Deserialize)]
+#[serde(untagged)]
+enum PiIndexWireArguments {
+    Object(PiIndexWireArgumentsObject),
+    Other(IgnoredAny),
+}
+
+#[derive(Deserialize)]
+struct PiIndexWireArgumentsObject {
+    path: Option<String>,
+}
+
+#[derive(Clone)]
+struct PiIndexedEntry {
+    id: String,
+    parent_id: Option<String>,
+    kind: String,
+    tree_kind: String,
+    role: Option<String>,
+    timestamp: Option<String>,
+    ordinal: usize,
+    offset: u64,
+    len: u64,
+    display: bool,
+}
+
+impl PiIndexedEntry {
+    fn makes_message(&self) -> bool {
+        match self.kind.as_str() {
+            "message" => match self.role.as_deref().unwrap_or("") {
+                "user" | "assistant" | "toolResult" | "bashExecution" => true,
+                "custom" => self.display,
+                _ => false,
+            },
+            "hookMessage" | "custom_message" => self.display,
+            _ => false,
+        }
+    }
+}
+
+struct PiIndex {
+    revision: FileRevision,
+    entries: Vec<PiIndexedEntry>,
+    by_id: HashMap<String, usize>,
+    tree: Vec<PiTreeNode>,
+    read_path_by_call: HashMap<String, String>,
+    image_results_by_call: HashMap<String, Vec<usize>>,
+}
+
+type PiIndexCache = HashMap<PathBuf, (FileRevision, Arc<PiIndex>)>;
+
+fn pi_index_cache() -> &'static Mutex<PiIndexCache> {
+    static CACHE: OnceLock<Mutex<PiIndexCache>> = OnceLock::new();
+    CACHE.get_or_init(|| Mutex::new(HashMap::new()))
+}
+
 fn parse_entries(bytes: &[u8]) -> Result<ParsedPi, String> {
+    parse_entries_reader(Cursor::new(bytes))
+}
+
+fn parse_entries_reader<R: BufRead>(mut reader: R) -> Result<ParsedPi, String> {
     let mut version = 3;
     let mut entries = Vec::new();
     let mut seen = HashSet::new();
     let mut duplicate_ids = false;
-    for (ordinal, raw) in bytes.split(|byte| *byte == b'\n').enumerate() {
+    let mut ordinal = 0usize;
+    let mut raw = Vec::new();
+    loop {
+        raw.clear();
+        if reader
+            .read_until(b'\n', &mut raw)
+            .map_err(|error| format!("Failed to read Pi session: {error}"))?
+            == 0
+        {
+            break;
+        }
+        let current_ordinal = ordinal;
+        ordinal += 1;
+        let raw = raw.strip_suffix(b"\n").unwrap_or(&raw);
         let raw = raw.strip_suffix(b"\r").unwrap_or(raw);
         if raw.is_empty() {
             continue;
@@ -387,7 +765,7 @@ fn parse_entries(bytes: &[u8]) -> Result<ParsedPi, String> {
             .and_then(Value::as_str)
             .filter(|id| !id.is_empty())
             .map(str::to_string)
-            .or_else(|| (version == 1).then(|| format!("v1:{ordinal}")));
+            .or_else(|| (version == 1).then(|| format!("v1:{current_ordinal}")));
         let Some(id) = id else {
             continue;
         };
@@ -470,6 +848,7 @@ fn entry_lineage<'a>(
     Ok(result)
 }
 
+#[cfg(test)]
 fn tree_nodes(parsed: &ParsedPi) -> Vec<PiTreeNode> {
     let mut children: HashMap<String, Vec<String>> = HashMap::new();
     for entry in &parsed.entries {
@@ -669,58 +1048,78 @@ fn recover_missing_clipboard_images(messages: &mut [Msg], images: &HashMap<Strin
     }
 }
 
-fn content_blocks(content: &Value, tool_id: Option<&str>, is_error: bool) -> Vec<Block> {
-    let items: Vec<Value> = match content {
-        Value::Array(items) => items.clone(),
-        Value::String(text) => vec![serde_json::json!({"type":"text","text":text})],
-        _ => Vec::new(),
-    };
-    let mut blocks = Vec::new();
+fn push_content_block(
+    blocks: &mut Vec<Block>,
+    item: &Value,
+    tool_id: Option<&str>,
+    is_error: bool,
+) {
     let is_tool_result = tool_id.is_some();
-    for item in items {
-        match item.get("type").and_then(Value::as_str).unwrap_or("") {
-            "text" => {
-                if let Some(text) = item.get("text").and_then(Value::as_str) {
-                    blocks.push(Block {
-                        kind: if is_tool_result {
-                            "tool_result".into()
-                        } else {
-                            "text".into()
-                        },
-                        text: Some(text.into()),
-                        tool_id: tool_id.map(str::to_string),
-                        is_error,
-                        ..Default::default()
-                    });
-                }
+    match item.get("type").and_then(Value::as_str).unwrap_or("") {
+        "text" => {
+            if let Some(text) = item.get("text").and_then(Value::as_str) {
+                blocks.push(Block {
+                    kind: if is_tool_result {
+                        "tool_result".into()
+                    } else {
+                        "text".into()
+                    },
+                    text: Some(text.into()),
+                    tool_id: tool_id.map(str::to_string),
+                    is_error,
+                    ..Default::default()
+                });
             }
-            "thinking" => {
-                if let Some(text) = item
-                    .get("thinking")
-                    .or_else(|| item.get("text"))
-                    .and_then(Value::as_str)
-                    .filter(|text| !text.trim().is_empty())
-                {
-                    blocks.push(Block {
-                        kind: "thinking".into(),
-                        text: Some(text.into()),
-                        ..Default::default()
-                    });
-                }
-            }
-            "image" | "image_url" => {
-                if let Some(src) = image_src(&item) {
-                    blocks.push(Block {
-                        kind: "image".into(),
-                        image_src: Some(src),
-                        tool_id: tool_id.map(str::to_string),
-                        is_error,
-                        ..Default::default()
-                    });
-                }
-            }
-            _ => {}
         }
+        "thinking" => {
+            if let Some(text) = item
+                .get("thinking")
+                .or_else(|| item.get("text"))
+                .and_then(Value::as_str)
+                .filter(|text| !text.trim().is_empty())
+            {
+                blocks.push(Block {
+                    kind: "thinking".into(),
+                    text: Some(text.into()),
+                    ..Default::default()
+                });
+            }
+        }
+        "image" | "image_url" => {
+            if let Some(src) = image_src(item) {
+                blocks.push(Block {
+                    kind: "image".into(),
+                    image_src: Some(src),
+                    tool_id: tool_id.map(str::to_string),
+                    is_error,
+                    ..Default::default()
+                });
+            }
+        }
+        _ => {}
+    }
+}
+
+fn content_blocks(content: &Value, tool_id: Option<&str>, is_error: bool) -> Vec<Block> {
+    let mut blocks = Vec::new();
+    match content {
+        Value::Array(items) => {
+            for item in items {
+                push_content_block(&mut blocks, item, tool_id, is_error);
+            }
+        }
+        Value::String(text) => blocks.push(Block {
+            kind: if tool_id.is_some() {
+                "tool_result".into()
+            } else {
+                "text".into()
+            },
+            text: Some(text.clone()),
+            tool_id: tool_id.map(str::to_string),
+            is_error,
+            ..Default::default()
+        }),
+        _ => {}
     }
     if blocks.is_empty() && tool_id.is_some() {
         blocks.push(Block {
@@ -1349,47 +1748,56 @@ fn user_text(entry: &Value) -> Option<String> {
     }
 }
 
-fn last_user_prompt(bytes: &[u8]) -> Option<String> {
-    let parsed = parse_entries(bytes).ok()?;
-    parsed
-        .entries
-        .iter()
-        .rev()
-        .filter(|entry| {
-            entry.value.get("type").and_then(Value::as_str) == Some("message")
-                && entry.value.pointer("/message/role").and_then(Value::as_str) == Some("user")
-        })
-        .filter_map(|entry| {
-            let mut messages = entry_to_msgs(entry);
-            crate::util::post_process_session_msgs(&mut messages);
-            for message in &mut messages {
-                normalize_pi_skill_blocks(&mut message.blocks);
-            }
-            messages.into_iter().find_map(|message| {
-                message
-                    .blocks
-                    .into_iter()
-                    .filter(|block| block.kind == "text")
-                    .filter_map(|block| block.text)
-                    .map(|text| truncate_subtitle(&text))
-                    .find(|text| !text.is_empty())
-            })
-        })
-        .find(|text| !text.is_empty())
+fn subtitle_for_user_entry(entry: &PiEntry) -> Option<String> {
+    let mut messages = entry_to_msgs(entry);
+    crate::util::post_process_session_msgs(&mut messages);
+    for message in &mut messages {
+        normalize_pi_skill_blocks(&mut message.blocks);
+    }
+    messages.into_iter().find_map(|message| {
+        message
+            .blocks
+            .into_iter()
+            .filter(|block| block.kind == "text")
+            .filter_map(|block| block.text)
+            .map(|text| truncate_subtitle(&text))
+            .find(|text| !text.is_empty())
+    })
 }
 
-fn tree_summary(bytes: &[u8]) -> TreeSummary {
-    let mut entries: Vec<(String, Option<String>, Value)> = Vec::new();
+fn tree_summary<R: BufRead>(mut reader: R) -> Result<TreeSummary, String> {
+    let mut entries = Vec::new();
+    let mut ids = HashSet::new();
+    let mut children = HashSet::new();
     let mut version = 3u64;
-    for (ordinal, raw) in bytes.split(|byte| *byte == b'\n').enumerate() {
-        let raw = raw.strip_suffix(b"\r").unwrap_or(raw);
+    let mut ordinal = 0usize;
+    let mut latest_name = None;
+    let mut previous_id: Option<String> = None;
+    let mut line = String::new();
+
+    loop {
+        line.clear();
+        let bytes_read = reader
+            .read_line(&mut line)
+            .map_err(|error| format!("Failed to read Pi session: {error}"))?;
+        if bytes_read == 0 {
+            break;
+        }
+        let current_ordinal = ordinal;
+        ordinal += 1;
+        let raw = line.trim_end_matches(['\n', '\r']);
         if raw.is_empty() {
             continue;
         }
-        let Ok(value) = serde_json::from_slice::<Value>(raw) else {
+        let Ok(mut value) = serde_json::from_str::<Value>(raw) else {
             continue;
         };
-        if value.get("type").and_then(Value::as_str) == Some("session") {
+        let entry_type = value
+            .get("type")
+            .and_then(Value::as_str)
+            .unwrap_or("")
+            .to_string();
+        if entry_type == "session" {
             version = value.get("version").and_then(Value::as_u64).unwrap_or(3);
             continue;
         }
@@ -1398,103 +1806,152 @@ fn tree_summary(bytes: &[u8]) -> TreeSummary {
             .and_then(Value::as_str)
             .filter(|id| !id.is_empty())
             .map(str::to_string)
-            .or_else(|| (version == 1).then(|| format!("v1:{ordinal}")));
+            .or_else(|| (version == 1).then(|| format!("v1:{current_ordinal}")));
         let Some(id) = id else {
             continue;
         };
-        let parent = value
+        if !ids.insert(id.clone()) {
+            continue;
+        }
+        let parent_id = value
             .get("parentId")
             .and_then(Value::as_str)
             .filter(|parent| !parent.is_empty())
             .map(str::to_string)
-            .or_else(|| {
-                (version == 1 && !entries.is_empty()).then(|| entries.last().unwrap().0.clone())
-            });
-        entries.push((id, parent, value));
-    }
-    let mut ids = HashSet::new();
-    let mut children = HashSet::new();
-    for (id, parent, _) in &entries {
-        if !ids.insert(id.clone()) {
-            continue;
-        }
-        if let Some(parent) = parent {
+            .or_else(|| (version == 1).then(|| previous_id.clone()).flatten());
+        if let Some(parent) = parent_id.as_ref() {
             children.insert(parent.clone());
         }
+
+        let raw_role = value.pointer("/message/role").and_then(Value::as_str);
+        let role = if version == 2 && raw_role == Some("hookMessage") {
+            if let Some(message) = value.get_mut("message").and_then(Value::as_object_mut) {
+                message.insert("role".into(), Value::String("custom".into()));
+            }
+            Some("custom".to_string())
+        } else {
+            raw_role.map(str::to_string)
+        };
+        let is_message = entry_type == "message";
+        if entry_type == "session_info" {
+            if let Some(name) = value.get("name").and_then(Value::as_str) {
+                latest_name = Some(name.to_string());
+            }
+        }
+        let is_user = is_message && role.as_deref() == Some("user");
+        let fallback_title = is_user
+            .then(|| user_text(&value))
+            .flatten()
+            .map(|text| clean_title(&normalize_pi_skill_text(&text)))
+            .filter(|text| !text.is_empty());
+        let user_prompt = if is_user {
+            let entry = PiEntry {
+                id: id.clone(),
+                parent_id: parent_id.clone(),
+                value,
+            };
+            subtitle_for_user_entry(&entry)
+        } else {
+            None
+        };
+
+        previous_id = Some(id.clone());
+        entries.push(TreeEntrySummary {
+            id,
+            parent_id,
+            is_message,
+            role,
+            fallback_title,
+            user_prompt,
+        });
     }
-    let leaf = entries
+
+    let index: HashMap<&str, usize> = entries
         .iter()
-        .rev()
-        .find(|(id, _, _)| ids.contains(id))
-        .map(|(id, _, _)| id.clone());
-    let index: HashMap<&str, &(String, Option<String>, Value)> = entries
-        .iter()
-        .filter(|(id, _, _)| ids.contains(id))
-        .map(|entry| (entry.0.as_str(), entry))
+        .enumerate()
+        .map(|(index, entry)| (entry.id.as_str(), index))
         .collect();
+    let Some(mut cursor) = entries.len().checked_sub(1) else {
+        return Ok(TreeSummary::default());
+    };
     let mut lineage = Vec::new();
-    let mut cursor = leaf.as_deref();
     let mut visited = HashSet::new();
-    while let Some(id) = cursor {
-        if !visited.insert(id) {
+    loop {
+        if !visited.insert(cursor) {
             break;
         }
-        let Some(entry) = index.get(id) else {
+        let entry = &entries[cursor];
+        lineage.push(cursor);
+        let Some(parent_id) = entry.parent_id.as_deref() else {
             break;
         };
-        lineage.push(*entry);
-        cursor = entry.1.as_deref();
+        let Some(parent) = index.get(parent_id).copied() else {
+            break;
+        };
+        cursor = parent;
     }
     lineage.reverse();
+
     let message_count = lineage
         .iter()
-        .filter(|(_, _, entry)| {
-            entry.get("type").and_then(Value::as_str) == Some("message")
-                && matches!(
-                    entry
-                        .get("message")
-                        .and_then(|message| message.get("role"))
-                        .and_then(Value::as_str),
-                    Some("user" | "assistant")
-                )
+        .filter(|index| {
+            let entry = &entries[**index];
+            entry.is_message && matches!(entry.role.as_deref(), Some("user" | "assistant"))
         })
         .count();
-    let latest_name = entries
+    let fallback_title = lineage
         .iter()
-        .filter_map(|(_, _, entry)| {
-            (entry.get("type").and_then(Value::as_str) == Some("session_info"))
-                .then(|| {
-                    entry
-                        .get("name")
-                        .and_then(Value::as_str)
-                        .map(str::to_string)
-                })
-                .flatten()
-        })
-        .next_back();
-    let fallback_title = lineage.iter().find_map(|(_, _, entry)| {
-        (entry.get("type").and_then(Value::as_str) == Some("message")
-            && entry
-                .get("message")
-                .and_then(|message| message.get("role"))
-                .and_then(Value::as_str)
-                == Some("user"))
-        .then(|| user_text(entry))
-        .flatten()
-        .map(|text| clean_title(&normalize_pi_skill_text(&text)))
-        .filter(|text| !text.is_empty())
-    });
+        .find_map(|index| entries[*index].fallback_title.clone());
+    let last_user_prompt = lineage
+        .iter()
+        .rev()
+        .find_map(|index| entries[*index].user_prompt.clone());
     let title = match latest_name {
         Some(name) if name.trim().is_empty() => None,
         Some(name) => Some(name),
         None => fallback_title,
     };
-    TreeSummary {
+
+    Ok(TreeSummary {
         entry_count: ids.len(),
         branch_count: ids.iter().filter(|id| !children.contains(*id)).count(),
         message_count,
         title,
+        last_user_prompt,
+    })
+}
+
+fn session_tree_summary(path: &Path) -> Result<TreeSummary, String> {
+    for attempt in 0..SNAPSHOT_RETRIES {
+        let before = file_revision(path)?;
+        if let Some((_, summary)) = tree_summary_cache()
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .get(path)
+            .filter(|(revision, _)| revision == &before)
+        {
+            return Ok(summary.clone());
+        }
+
+        let file =
+            fs::File::open(path).map_err(|error| format!("Failed to open Pi session: {error}"))?;
+        let summary = tree_summary(BufReader::new(file))?;
+        let after = file_revision(path)?;
+        if before == after {
+            let mut cache = tree_summary_cache()
+                .lock()
+                .unwrap_or_else(|poisoned| poisoned.into_inner());
+            if cache.len() >= 2048 && !cache.contains_key(path) {
+                cache.clear();
+            }
+            cache.insert(path.to_path_buf(), (after, summary.clone()));
+            return Ok(summary);
+        }
+        if attempt + 1 < SNAPSHOT_RETRIES {
+            thread::sleep(SNAPSHOT_RETRY_DELAY);
+        }
     }
+    Err("Pi session changed while reading; retry after its current write completes".to_string())
 }
 
 /// 标题指纹：Pi 的 `/rename` 追加一条 `session_info`（带 `name`），它不产生任何
@@ -1524,9 +1981,7 @@ fn metadata_fingerprint(fp: &Path) -> Option<String> {
 }
 
 fn session_meta(record: &PiSessionRecord) -> SessionMeta {
-    let summary = stable_bytes(&record.path)
-        .map(|bytes| tree_summary(&bytes))
-        .unwrap_or_default();
+    let summary = session_tree_summary(&record.path).unwrap_or_default();
     let file_name = record
         .path
         .file_name()
@@ -1575,6 +2030,305 @@ fn pi_chat_slash_commands(cwd: &str) -> Vec<crate::types::SlashCommand> {
             .then_with(|| a.title.to_lowercase().cmp(&b.title.to_lowercase()))
     });
     out
+}
+
+fn messages_from_parsed(parsed: &mut ParsedPi, leaf_id: Option<&str>) -> Result<Vec<Msg>, String> {
+    let lineage_indices: Vec<usize> = entry_lineage(parsed, leaf_id)?
+        .into_iter()
+        .filter_map(|entry| parsed.by_id.get(&entry.id).copied())
+        .collect();
+    let selected: HashSet<usize> = lineage_indices.iter().copied().collect();
+    let recovered_images = read_tool_images_by_path(&parsed.entries);
+    for (index, entry) in parsed.entries.iter_mut().enumerate() {
+        if !selected.contains(&index) {
+            entry.value = Value::Null;
+        }
+    }
+
+    let mut messages = Vec::with_capacity(lineage_indices.len());
+    for index in lineage_indices {
+        let entry = &mut parsed.entries[index];
+        let owned_entry = PiEntry {
+            id: entry.id.clone(),
+            parent_id: entry.parent_id.clone(),
+            value: std::mem::take(&mut entry.value),
+        };
+        messages.extend(entry_to_msgs(&owned_entry));
+    }
+    mark_failed_tool_calls(&mut messages);
+    // Pi persists pasted screenshots as clipboard-*.png paths inside user
+    // text. Reuse the shared attachment pass used by Kimi/Claude/Codex so
+    // those paths become image blocks and [Image #N] placeholders.
+    crate::util::post_process_session_msgs(&mut messages);
+    // Some clipboard files are gone; recover them from Pi's read tool results.
+    recover_missing_clipboard_images(&mut messages, &recovered_images);
+    // Image extraction can move a leading clipboard path out of the text block.
+    for message in &mut messages {
+        normalize_pi_skill_blocks(&mut message.blocks);
+    }
+    Ok(messages)
+}
+
+/// Read a bounded portion of a Pi lineage. The JSONL index only retains small
+/// entry metadata; full JSON values are materialized for messages in this page.
+pub fn read_session_page(
+    path: &str,
+    requested_leaf_id: Option<&str>,
+    before_entry_id: Option<&str>,
+    requested_limit: Option<usize>,
+    include_tree: bool,
+) -> Result<PiSessionPage, String> {
+    let path = Path::new(path);
+    let index = stable_pi_index(path)?;
+    let leaf_index = requested_leaf_id
+        .and_then(|id| index.by_id.get(id).copied())
+        .or_else(|| index.entries.len().checked_sub(1))
+        .ok_or_else(|| "Pi session has no entries".to_string())?;
+    let selected_leaf_id = Some(index.entries[leaf_index].id.clone());
+    let (message_count, user_count, assistant_count) = pi_lineage_counts(&index, leaf_index);
+
+    let mut cursor = Some(leaf_index);
+    if let Some(before_id) = before_entry_id {
+        let before_index = *index
+            .by_id
+            .get(before_id)
+            .ok_or_else(|| format!("Pi entry not found: {before_id}"))?;
+        let mut probe = Some(leaf_index);
+        let mut visited = HashSet::new();
+        let mut found = false;
+        while let Some(current) = probe {
+            if !visited.insert(current) {
+                break;
+            }
+            if current == before_index {
+                found = true;
+                cursor = index.entries[current]
+                    .parent_id
+                    .as_deref()
+                    .and_then(|id| index.by_id.get(id).copied());
+                break;
+            }
+            probe = index.entries[current]
+                .parent_id
+                .as_deref()
+                .and_then(|id| index.by_id.get(id).copied());
+        }
+        if !found {
+            return Err("Pi page cursor is not on the selected branch".to_string());
+        }
+    }
+
+    let limit = requested_limit
+        .unwrap_or(PI_INITIAL_PAGE_SIZE)
+        .clamp(1, PI_PAGE_SIZE_MAX);
+    let mut page_indices = Vec::with_capacity(limit.min(256));
+    let mut raw_bytes = 0u64;
+    let mut visited = HashSet::new();
+    while let Some(current) = cursor {
+        if !visited.insert(current) {
+            break;
+        }
+        let entry = &index.entries[current];
+        if entry.makes_message() {
+            if !page_indices.is_empty()
+                && (page_indices.len() >= limit
+                    || raw_bytes.saturating_add(entry.len) > PI_PAGE_RAW_BYTES)
+            {
+                break;
+            }
+            page_indices.push(current);
+            raw_bytes = raw_bytes.saturating_add(entry.len);
+        }
+        cursor = entry
+            .parent_id
+            .as_deref()
+            .and_then(|id| index.by_id.get(id).copied());
+    }
+    page_indices.reverse();
+
+    let first_entry = page_indices
+        .first()
+        .map(|entry_index| &index.entries[*entry_index]);
+    let has_older = first_entry.is_some_and(|first| {
+        let mut older = first
+            .parent_id
+            .as_deref()
+            .and_then(|id| index.by_id.get(id).copied());
+        let mut visited = HashSet::new();
+        while let Some(candidate) = older {
+            if !visited.insert(candidate) {
+                return false;
+            }
+            if index.entries[candidate].makes_message() {
+                return true;
+            }
+            older = index.entries[candidate]
+                .parent_id
+                .as_deref()
+                .and_then(|id| index.by_id.get(id).copied());
+        }
+        false
+    });
+    let older_cursor = has_older
+        .then(|| first_entry.map(|entry| entry.id.clone()))
+        .flatten();
+    let messages = messages_from_index_page(path, &index, &page_indices)?;
+    if file_revision(path)? != index.revision {
+        return Err(
+            "Pi session changed while reading; retry after its current write completes".into(),
+        );
+    }
+    Ok(PiSessionPage {
+        messages,
+        tree: include_tree.then(|| {
+            index
+                .tree
+                .iter()
+                .filter(|node| node.terminal)
+                .cloned()
+                .collect()
+        }),
+        selected_leaf_id,
+        older_cursor,
+        has_older,
+        message_count,
+        user_count,
+        assistant_count,
+    })
+}
+
+fn pi_lineage_counts(index: &PiIndex, leaf_index: usize) -> (usize, usize, usize) {
+    let mut message_count = 0;
+    let mut user_count = 0;
+    let mut assistant_count = 0;
+    let mut cursor = Some(leaf_index);
+    let mut visited = HashSet::new();
+    while let Some(current) = cursor {
+        if !visited.insert(current) {
+            break;
+        }
+        let entry = &index.entries[current];
+        if entry.makes_message() {
+            message_count += 1;
+        }
+        match entry.role.as_deref() {
+            Some("user") => user_count += 1,
+            Some("assistant" | "toolResult") => assistant_count += 1,
+            _ => {}
+        }
+        cursor = entry
+            .parent_id
+            .as_deref()
+            .and_then(|id| index.by_id.get(id).copied());
+    }
+    (message_count, user_count, assistant_count)
+}
+
+fn messages_from_index_page(
+    path: &Path,
+    index: &PiIndex,
+    page_indices: &[usize],
+) -> Result<Vec<Msg>, String> {
+    let mut file =
+        fs::File::open(path).map_err(|error| format!("Failed to open Pi session: {error}"))?;
+    let mut messages = Vec::with_capacity(page_indices.len());
+    let mut raw = Vec::new();
+    for entry_index in page_indices {
+        let indexed = &index.entries[*entry_index];
+        file.seek(SeekFrom::Start(indexed.offset))
+            .map_err(|error| format!("Failed to seek Pi session: {error}"))?;
+        let len = usize::try_from(indexed.len)
+            .map_err(|_| "Pi entry is too large to read on this platform".to_string())?;
+        raw.resize(len, 0);
+        file.read_exact(&mut raw)
+            .map_err(|error| format!("Failed to read Pi entry: {error}"))?;
+        let mut value: Value = serde_json::from_slice(&raw)
+            .map_err(|error| format!("Failed to parse Pi entry: {error}"))?;
+        if indexed.role.as_deref() == Some("custom")
+            && value.pointer("/message/role").and_then(Value::as_str) == Some("hookMessage")
+        {
+            if let Some(message) = value.get_mut("message").and_then(Value::as_object_mut) {
+                message.insert("role".into(), Value::String("custom".into()));
+            }
+        }
+        let entry = PiEntry {
+            id: indexed.id.clone(),
+            parent_id: indexed.parent_id.clone(),
+            value,
+        };
+        messages.extend(entry_to_msgs(&entry));
+    }
+
+    mark_failed_tool_calls(&mut messages);
+    crate::util::post_process_session_msgs(&mut messages);
+    for message in &mut messages {
+        normalize_pi_skill_blocks(&mut message.blocks);
+    }
+    recover_page_clipboard_images(path, index, &mut messages)?;
+    Ok(messages)
+}
+
+fn recover_page_clipboard_images(
+    path: &Path,
+    index: &PiIndex,
+    messages: &mut [Msg],
+) -> Result<(), String> {
+    let missing_paths: HashSet<String> = messages
+        .iter()
+        .flat_map(|message| message.blocks.iter())
+        .filter(|block| block.kind == "image" && block.image_unavailable == Some(true))
+        .filter_map(|block| block.image_src.clone())
+        .collect();
+    if missing_paths.is_empty() {
+        return Ok(());
+    }
+
+    let wanted_calls: HashSet<&str> = index
+        .read_path_by_call
+        .iter()
+        .filter(|(_, read_path)| missing_paths.contains(*read_path))
+        .map(|(call_id, _)| call_id.as_str())
+        .collect();
+    if wanted_calls.is_empty() {
+        return Ok(());
+    }
+    let mut recovered = HashMap::new();
+    let mut file =
+        fs::File::open(path).map_err(|error| format!("Failed to open Pi session: {error}"))?;
+    let mut raw = Vec::new();
+    for call_id in wanted_calls {
+        let Some(read_path) = index.read_path_by_call.get(call_id) else {
+            continue;
+        };
+        let Some(result_indices) = index.image_results_by_call.get(call_id) else {
+            continue;
+        };
+        for result_index in result_indices {
+            let entry = &index.entries[*result_index];
+            file.seek(SeekFrom::Start(entry.offset))
+                .map_err(|error| format!("Failed to seek Pi image result: {error}"))?;
+            let len = usize::try_from(entry.len)
+                .map_err(|_| "Pi image result is too large to read on this platform".to_string())?;
+            raw.resize(len, 0);
+            file.read_exact(&mut raw)
+                .map_err(|error| format!("Failed to read Pi image result: {error}"))?;
+            let value: Value = serde_json::from_slice(&raw)
+                .map_err(|error| format!("Failed to parse Pi image result: {error}"))?;
+            let image = value
+                .pointer("/message/content")
+                .and_then(Value::as_array)
+                .into_iter()
+                .flatten()
+                .filter(|block| block.get("type").and_then(Value::as_str) == Some("image"))
+                .find_map(image_src);
+            if let Some(image) = image {
+                recovered.insert(read_path.clone(), image);
+                break;
+            }
+        }
+    }
+    recover_missing_clipboard_images(messages, &recovered);
+    Ok(())
 }
 
 impl SessionSource for PiSource {
@@ -1634,36 +2388,16 @@ impl SessionSource for PiSource {
         self.read_session_at(path, None)
     }
     fn read_session_at(&self, path: &str, leaf_id: Option<&str>) -> Result<Vec<Msg>, String> {
-        let bytes = stable_bytes(Path::new(path))?;
-        let parsed = parse_entries(&bytes)?;
-        let lineage = entry_lineage(&parsed, leaf_id)?;
-        let mut messages: Vec<Msg> = lineage.into_iter().flat_map(entry_to_msgs).collect();
-        mark_failed_tool_calls(&mut messages);
-        // Pi persists pasted screenshots as clipboard-*.png paths inside user
-        // text. Reuse the shared attachment pass used by Kimi/Claude/Codex so
-        // those paths become image blocks and [Image #N] placeholders.
-        crate::util::post_process_session_msgs(&mut messages);
-        // 贴图文件常已被系统清掉，只剩死路径；用 Pi 自己 read 回来的字节补上。
-        recover_missing_clipboard_images(
-            &mut messages,
-            &read_tool_images_by_path(&parsed.entries),
-        );
-        // Image extraction can move a leading absolute clipboard path out of
-        // the text block. Run skill normalization once more so an image + skill
-        // prompt follows the same compact rendering as a plain skill prompt.
-        for message in &mut messages {
-            normalize_pi_skill_blocks(&mut message.blocks);
-        }
-        Ok(messages)
+        let mut parsed = stable_parsed_entries(Path::new(path))?;
+        messages_from_parsed(&mut parsed, leaf_id)
     }
 
     fn last_prompt(&self, path: &str) -> Result<Option<String>, String> {
-        Ok(last_user_prompt(&stable_bytes(Path::new(path))?))
+        Ok(session_tree_summary(Path::new(path))?.last_user_prompt)
     }
 
     fn session_tree(&self, path: &str) -> Result<Vec<PiTreeNode>, String> {
-        let parsed = parse_entries(&stable_bytes(Path::new(path))?)?;
-        Ok(tree_nodes(&parsed))
+        Ok(stable_pi_index(Path::new(path))?.tree.clone())
     }
     fn session_export_json(&self, path: &str, leaf_id: Option<&str>) -> Result<String, String> {
         let bytes = stable_bytes(Path::new(path))?;

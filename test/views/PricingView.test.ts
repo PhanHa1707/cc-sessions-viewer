@@ -34,6 +34,45 @@ describe('PricingView Grok family', () => {
     })
   })
 
+  it('shows free input/output as zero without inventing unavailable cache rates', async () => {
+    invokeMock.mockImplementation((command: string) => {
+      if (command === 'pricing_status') {
+        return Promise.resolve({ loaded: true, fetching: false, lastError: null, modelCount: 2 })
+      }
+      if (command === 'list_pricing') {
+        return Promise.resolve([
+          {
+            name: 'new-free-preview', family: 'opencode',
+            input: 0, output: 0, cacheWrite: 0, cacheRead: 0, context: 1_000_000,
+          },
+          {
+            name: 'gemini-next-flash', family: 'agy',
+            input: 0.75e-6, output: 3.75e-6, cacheWrite: 0, cacheRead: 0.075e-6,
+            context: 1_048_576,
+          },
+        ])
+      }
+      return Promise.resolve(undefined)
+    })
+    const wrapper = mount(PricingView, {
+      global: { directives: { tooltip: vTooltip } },
+    })
+    try {
+      await flushPromises()
+      const rows = wrapper.findAll('.pricing-row:not(.pricing-row-head)')
+      const free = rows.find((row) => row.text().includes('new-free-preview'))
+      expect(free?.findAll('[role="cell"]').map((cell) => cell.text())).toEqual([
+        'new-free-preview', '1M', '$0.00', '$0.00', '—', '—',
+      ])
+      const gemini = rows.find((row) => row.text().includes('gemini-next-flash'))
+      expect(gemini?.findAll('[role="cell"]').map((cell) => cell.text())).toEqual([
+        'gemini-next-flash', '1.05M', '$0.75', '$3.75', '$0.075', '—',
+      ])
+    } finally {
+      wrapper.unmount()
+    }
+  })
+
   it('renders the xAI family, Grok Build icon anchor, and model pricing row when Grok is hidden', async () => {
     const originalAgents = { ...enabledAgents.value }
     enabledAgents.value = { ...enabledAgents.value, grok: false }

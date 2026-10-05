@@ -91,7 +91,7 @@ export interface PricingEntry {
   context: number
 }
 
-/** 拉当前价格表 —— 后端已按 family + input 升序排好，前端可直接 group_by。 */
+/** 拉当前价格表 —— 后端已按 family + 模型版本倒序排好，前端可直接 group_by。 */
 export async function listPricing(): Promise<PricingEntry[]> {
   try {
     return await invoke<PricingEntry[]>('list_pricing')

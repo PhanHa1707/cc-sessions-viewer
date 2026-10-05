@@ -53,8 +53,8 @@ use std::path::{Path, PathBuf};
 
 use crate::agent_command::AgentCommand;
 use crate::types::{
-    AgentStats, ClaudeRuntimeInfo, CodexRuntimeInfo, Msg, PiTreeNode, ProjectInfo, SearchHit,
-    SessionPage, TrashItem, TrayStats, UsageSummary,
+    AgentStats, ClaudeRuntimeInfo, CodexRuntimeInfo, Msg, PiSessionPage, PiTreeNode, ProjectInfo,
+    SearchHit, SessionPage, TrashItem, TrayStats, UsageSummary,
 };
 #[allow(unused_imports)]
 use tauri::{AppHandle, Emitter, Manager};
@@ -307,6 +307,25 @@ fn read_session(agent: String, path: String, leaf_id: Option<String>) -> Result<
     // base64 最贵的那一步。live chat 的流式消息不走这条路，仍保持内联。
     image_cache::externalize(&mut msgs);
     Ok(msgs)
+}
+
+#[tauri::command(async)]
+fn read_pi_session_page(
+    path: String,
+    leaf_id: Option<String>,
+    before_entry_id: Option<String>,
+    limit: Option<usize>,
+    include_tree: bool,
+) -> Result<PiSessionPage, String> {
+    let mut page = agents::pi::read_session_page(
+        &path,
+        leaf_id.as_deref(),
+        before_entry_id.as_deref(),
+        limit,
+        include_tree,
+    )?;
+    image_cache::externalize(&mut page.messages);
+    Ok(page)
 }
 
 #[tauri::command(async)]
@@ -2684,6 +2703,7 @@ pub fn run() {
             tools::files::tools_write_skill_file,
             list_sessions,
             read_session,
+            read_pi_session_page,
             session_tree,
             session_export_json,
             watch_session,

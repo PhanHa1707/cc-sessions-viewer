@@ -417,6 +417,22 @@ pub struct PiTreeNode {
     pub terminal: bool,
 }
 
+/// One bounded page of a Pi transcript, with branch metadata supplied only on
+/// the first page so a large session does not send its full history over IPC.
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PiSessionPage {
+    pub messages: Vec<Msg>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tree: Option<Vec<PiTreeNode>>,
+    pub selected_leaf_id: Option<String>,
+    pub older_cursor: Option<String>,
+    pub has_older: bool,
+    pub message_count: usize,
+    pub user_count: usize,
+    pub assistant_count: usize,
+}
+
 /// 一个会话的 token 用量汇总。三个 agent 用的字段名各不相同，这里统一抽象：
 ///   - `input_tokens` / `output_tokens` —— 新鲜进 / 出的 token
 ///   - `cache_creation_input_tokens` —— 写入缓存（仅 Claude 有这个概念，含 5min + 1h 两档）

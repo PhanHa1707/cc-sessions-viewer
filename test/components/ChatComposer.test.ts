@@ -7,6 +7,7 @@ import type { ChatSession } from '../../src/chatSessions'
 
 const {
   claudeRuntimeInfoMock,
+  codexRuntimeInfoMock,
   listProjectFilesMock,
   openSideChatMock,
   openCodexSideChatMock,
@@ -15,6 +16,7 @@ const {
   readFileBase64Mock,
 } = vi.hoisted(() => ({
   claudeRuntimeInfoMock: vi.fn().mockResolvedValue({ hasCustomBaseUrl: false }),
+  codexRuntimeInfoMock: vi.fn().mockResolvedValue({ usesApiKey: false }),
   listProjectFilesMock: vi.fn().mockResolvedValue([]),
   openSideChatMock: vi.fn().mockResolvedValue(null),
   openCodexSideChatMock: vi.fn().mockResolvedValue(null),
@@ -28,7 +30,7 @@ vi.mock('../../src/api', () => ({
   agentChatInterrupt: agentChatInterruptMock,
   agentChatSteer: agentChatSteerMock,
   claudeRuntimeInfo: claudeRuntimeInfoMock,
-  codexRuntimeInfo: vi.fn().mockResolvedValue({ usesApiKey: false }),
+  codexRuntimeInfo: codexRuntimeInfoMock,
   listProjectFiles: listProjectFilesMock,
   readFileBase64: readFileBase64Mock,
 }))
@@ -131,6 +133,66 @@ describe('ChatComposer', () => {
     })
     expect(wrapper.findComponent({ name: 'ChatModelMenu' }).exists()).toBe(true)
     expect(wrapper.text()).toContain('Opus')
+  })
+
+  it('shows the configured Codex third-party model without changing the current session model', async () => {
+    codexRuntimeInfoMock.mockResolvedValueOnce({ usesApiKey: true, model: 'minimax-m3' })
+    const session = baseSession({ agent: 'codex', model: 'gpt-6-sol', lastModel: 'gpt-6-sol' })
+    const wrapper = mount(ChatComposer, {
+      props: { session },
+      global: { directives: { tooltip: vTooltip } },
+    })
+    try {
+      await flushPromises()
+      expect(wrapper.find('.mm-trigger').text()).toContain('GPT-6-Sol')
+      await wrapper.find('.mm-trigger').trigger('click')
+      const custom = wrapper.findAll('.mm-item').find((item) => item.text().includes('minimax-m3'))
+      expect(custom).toBeDefined()
+      expect(session.model).toBe('gpt-6-sol')
+      await custom!.trigger('click')
+      expect(session.model).toBe('minimax-m3')
+      expect(wrapper.find('.mm-trigger').text()).toContain('minimax-m3')
+    } finally {
+      wrapper.unmount()
+    }
+  })
+
+  it('ignores a stale configured Codex model response after switching sessions', async () => {
+    let resolveFirst: (info: { usesApiKey: boolean; model: string }) => void = () => {}
+    codexRuntimeInfoMock.mockReturnValueOnce(new Promise((resolve) => { resolveFirst = resolve }))
+    codexRuntimeInfoMock.mockResolvedValueOnce({ usesApiKey: true, model: 'new-custom-model' })
+    const wrapper = mount(ChatComposer, {
+      props: { session: baseSession({ agent: 'codex', model: 'old-custom-model' }) },
+      global: { directives: { tooltip: vTooltip } },
+    })
+    try {
+      await wrapper.setProps({ session: baseSession({ uiId: 2, agent: 'codex', model: 'new-custom-model' }) })
+      await flushPromises()
+      resolveFirst({ usesApiKey: true, model: 'old-custom-model' })
+      await flushPromises()
+      await wrapper.find('.mm-trigger').trigger('click')
+      expect(wrapper.text()).toContain('new-custom-model')
+      expect(wrapper.text()).not.toContain('old-custom-model')
+    } finally {
+      wrapper.unmount()
+    }
+  })
+
+  it('does not expose the configured Codex third-party model for an official account', async () => {
+    codexRuntimeInfoMock.mockResolvedValueOnce({ usesApiKey: false, model: 'minimax-m3' })
+    const session = baseSession({ agent: 'codex', model: 'gpt-6-sol' })
+    const wrapper = mount(ChatComposer, {
+      props: { session },
+      global: { directives: { tooltip: vTooltip } },
+    })
+    try {
+      await flushPromises()
+      await wrapper.find('.mm-trigger').trigger('click')
+      expect(wrapper.text()).not.toContain('minimax-m3')
+      expect(session.model).toBe('gpt-6-sol')
+    } finally {
+      wrapper.unmount()
+    }
   })
 
   it('interrupts the running turn when Escape is pressed in the input', async () => {
@@ -454,7 +516,7 @@ describe('ChatComposer', () => {
     })
     expect(session.model).toBeUndefined() // runtime info 就位前先不乱选
     await flushPromises()
-    expect(session.model).toBe('claude-opus-5') // 标准上下文，不是会触发 1M 报错的默认别名
+    expect(session.model).toBe('claude-opus-5-5') // 当前订阅默认 Opus 5.5，跳过需 credits 的 Fable
   })
 
   it('auto-selects the alias model for a brand-new API-key chat so settings.json mapping applies', async () => {

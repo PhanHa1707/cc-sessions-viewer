@@ -39,6 +39,7 @@ import {
   IconSplitV,
   IconChat,
   IconGitBranch,
+  IconExternalLink,
 } from '../components/icons'
 import CreationSortIcon from '../components/CreationSortIcon.vue'
 import NewMenu from '../components/NewMenu.vue'
@@ -273,27 +274,46 @@ function fetchUsage(path: string) {
     })
 }
 
-const subtitleMap = ref<Map<string, { text: string; mtime: string }>>(new Map())
+const subtitleMap = ref<Map<string, { text: string; revision: string }>>(new Map())
 const subtitleInFlight = new Set<string>()
+
+function sessionRevision(session: SessionMeta): string {
+  return `${session.modified}:${session.size}`
+}
 
 function fetchSubtitle(path: string) {
   if (subtitleInFlight.has(path)) return
   const session = props.sessions.find((s) => s.path === path)
-  const mtime = String(session?.modified ?? '')
+  if (!session) return
+  const revision = sessionRevision(session)
   const cached = subtitleMap.value.get(path)
-  if (cached && cached.mtime === mtime) return
+  if (cached && cached.revision === revision) return
   subtitleInFlight.add(path)
   sessionLastPrompt(props.agent, path)
     .then((text) => {
-      if (text) {
-        const next = new Map(subtitleMap.value)
-        next.set(path, { text, mtime })
-        subtitleMap.value = next
-      }
+      const current = props.sessions.find((s) => s.path === path)
+      if (!current || sessionRevision(current) !== revision) return
+      const next = new Map(subtitleMap.value)
+      if (text) next.set(path, { text, revision })
+      else next.delete(path)
+      subtitleMap.value = next
     })
     .catch(() => {})
-    .finally(() => { subtitleInFlight.delete(path) })
+    .finally(() => {
+      subtitleInFlight.delete(path)
+      const current = props.sessions.find((s) => s.path === path)
+      if (current && sessionRevision(current) !== revision) fetchSubtitle(path)
+    })
 }
+
+// Reload previews for sessions whose JSONL file changed while the card stays
+// mounted. Initial and newly visible cards remain lazy-loaded by the observer.
+watch(
+  () => props.sessions.map((session) => `${session.path}\0${session.modified}:${session.size}`).join('\n'),
+  () => {
+    for (const path of subtitleMap.value.keys()) fetchSubtitle(path)
+  },
+)
 
 // Vue ref callback：每张卡片 mounted 时把 element 注册到 observer；unmount 时取消。
 function observeUsageCard(path: string, el: Element | null) {
@@ -447,10 +467,20 @@ function codexSpecialLabel(s: SessionMeta): string {
   return ''
 }
 
-// 批量模式下点整张卡片即勾选；否则按以往打开会话。
-function onCardClick(s: SessionMeta) {
+// 批量模式下点整张卡片即勾选；否则普通点击前台打开，⌘/Ctrl 点击后台打开。
+function onCardClick(s: SessionMeta, e: MouseEvent) {
   if (sessionSelectMode.value) toggleSessionSelected(s.path)
+  else if (e.metaKey || e.ctrlKey) {
+    e.preventDefault()
+    void pa.openChatInBackground(s)
+  }
   else emit('open', s)
+}
+
+function onCardAuxClick(s: SessionMeta, e: MouseEvent) {
+  if (sessionSelectMode.value || e.button !== 1) return
+  e.preventDefault()
+  void pa.openChatInBackground(s)
 }
 
 onUnmounted(() => {
@@ -837,7 +867,8 @@ onUnmounted(() => document.removeEventListener('click', onNewMenuDocClick))
           'sess-sunk': sessStateOf(s) === 'sunk',
         }"
         :data-path="s.path"
-        @click="onCardClick(s)"
+        @click="onCardClick(s, $event)"
+        @auxclick="onCardAuxClick(s, $event)"
       >
       <span
         v-if="sessionSelectMode"
@@ -905,6 +936,14 @@ onUnmounted(() => document.removeEventListener('click', onNewMenuDocClick))
         </div>
       </div>
       <div v-if="!sessionSelectMode" class="session-actions">
+        <button
+          class="icon-btn"
+          :aria-label="t('list.action.openBackground')"
+          v-tooltip="t('list.action.openBackground')"
+          @click.stop="pa.openChatInBackground(s)"
+        >
+          <IconExternalLink />
+        </button>
         <button
           v-if="chatSupported(agent) && project.exists"
           class="icon-btn"

@@ -6,6 +6,43 @@ All notable changes to this project are documented here. Format follows [Keep a 
 
 ---
 
+## [v0.5.3]
+
+### Features
+
+- **New chat models** — added Claude Opus 5.5 and Sonnet 5.5, with Opus 5.5 as the default for new Claude chats. Updated the Codex list with GPT-6.1-Sol, GPT-6-Sol, and GPT-6-Luna, and added the supported maximum effort level for GPT-6-Luna.
+- **Compact reasoning display** — consecutive reasoning steps are grouped into one folded row across agents. A global setting and per-session controls show or hide reasoning independently from tool calls.
+- **Session navigator and background open** — search and switch between sessions from a compact list in the detail view, or open another session in a background tab without leaving the current view.
+
+### Improvements
+
+- **Large Pi sessions load incrementally** — opening a session reads the recent message page first and loads older pages as you scroll upward. Search, jump-to-prompt, global search, and export still load the full history when needed. Pi's visible session list also refreshes while the app is in the foreground.
+- **Pricing follows the live OpenCode catalog** — read Zen and Go model IDs and service prices from the upstream catalog instead of a fixed allowlist. Preserve explicitly free rates, and show unpublished cache prices as unavailable instead of inferring them.
+- **Codex custom-provider models appear in the picker** — third-party API setups can select and checkmark the actual model from global `config.toml`, preserving its request ID without inventing a GPT alias mapping.
+- **Chat toolbar is less crowded** — moved the infrequently used tool-call, thinking, and export actions into a More menu. Export formats open when hovering over Export.
+- **Session previews stay current** — refresh subtitles when a session file changes, and derive Pi previews from the latest user message.
+
+### Bug Fixes
+
+- **Codex sessions no longer jump to the top when opened** — sort and display update times from the latest user or assistant message instead of filesystem modification time, which can change when Codex merely opens a thread.
+- **Going Back no longer stops a running Chat** — Back returns to the session list while keeping the live Chat and its process in the background; reopening the same session restores that Chat. Explicitly closing the Chat still stops it.
+- **Codex third-party chats default to the configured model** — new and resumed chats use the current global `config.toml` model and effort instead of stale GUI defaults or a GPT-5.5 fallback. Explicit model choices still take precedence; already-running chats keep their settings.
+
+### Tests
+
+- Added or updated regression coverage for chat model defaults and effort levels, dynamic pricing and missing cache rates, and session activity timestamps.
+- Added coverage for Codex custom-model picker selection, config-driven defaults on new and resumed chats, explicit overrides, missing-config fallback, and official-account behavior.
+
+## [v0.5.2]
+
+### Bug Fixes
+
+- **Unicode whitespace before file paths could crash the app** — fixed path extraction for messages containing multibyte whitespace such as non-breaking spaces and em spaces. The viewer now advances by the matched character's UTF-8 length instead of assuming every whitespace character is one byte, preventing a Rust panic when processing copied or formatted paths.
+
+### Tests
+
+- Added regression coverage for absolute paths preceded by NBSP (`U+00A0`) and EM SPACE (`U+2003`).
+
 ## [v0.5.1]
 
 ### Features

@@ -46,7 +46,9 @@ import {
 import type { ProjectInfo, SearchHit, SessionMeta } from '../../src/types'
 import { PaneActionsKey, type PaneActions } from '../../src/paneActions'
 
-const stubPaneActions = {} as PaneActions
+const openBackgroundMock = vi.fn<PaneActions['openChatInBackground']>().mockResolvedValue(undefined)
+// This view's tests only exercise background opening, not the complete action bus.
+const stubPaneActions = { openChatInBackground: openBackgroundMock } satisfies Pick<PaneActions, 'openChatInBackground'>
 
 // 每个 case 后卸载它挂载的 wrapper。否则旧实例的 watch 仍订阅 sessionSearch，
 // 一旦设值，所有历史实例都会一起调 searchSessions，把 mockResolvedValueOnce
@@ -56,6 +58,7 @@ enableAutoUnmount(afterEach)
 beforeEach(() => {
   setLang('en')
   resetSessionsToolbar()
+  openBackgroundMock.mockClear()
   searchMock.mockReset()
   cancelMock.mockClear()
   cancelMock.mockResolvedValue(undefined)
@@ -100,6 +103,12 @@ const session = (over: Partial<SessionMeta> = {}): SessionMeta => ({
   modified: 0,
   size: 1024,
   messageCount: 3,
+  codexAppListRank: null,
+  codexAppListScanned: 0,
+  codexAppFirstPageSize: 0,
+  codexAppFirstPagePosition: 0,
+  codexInternal: false,
+  codexArchived: false,
   ...over,
 })
 
@@ -134,6 +143,15 @@ describe('SessionsView', () => {
     const wrapper = factory()
     await wrapper.find('.session-card').trigger('click')
     expect(wrapper.emitted('open')).toHaveLength(1)
+  })
+
+  it('opens a session in the background without navigating the current pane', async () => {
+    const target = session()
+    const wrapper = factory([target])
+    await wrapper.find('.session-actions button[aria-label]').trigger('click')
+    expect(openBackgroundMock).toHaveBeenCalledExactlyOnceWith(target)
+    expect(wrapper.emitted('open')).toBeUndefined()
+    expect(wrapper.emitted('chat')).toBeUndefined()
   })
 
   it('opens the export menu without navigating into the session', async () => {
@@ -439,22 +457,25 @@ describe('SessionsView', () => {
         },
       })
       expect(wrapper.find('.title-rename-ic').exists()).toBe(true)
-      // 只剩 在文件管理器中显示 / 导出 / 置顶 / 沉底 / 删除
-      expect(wrapper.findAll('.session-actions .icon-btn')).toHaveLength(5)
+      // 后台打开只读历史 / 在文件管理器中显示 / 导出 / 置顶 / 沉底 / 删除。
+      expect(wrapper.find('.session-actions button[aria-label]').exists()).toBe(true)
+      expect(wrapper.findAll('.session-actions .icon-btn')).toHaveLength(6)
     })
 
     it('keeps every card action when the directory exists', () => {
       const wrapper = factory()
       expect(wrapper.find('.title-rename-ic').exists()).toBe(true)
-      // chat(claude) / resume / reveal / export / pin / sink / delete
-      expect(wrapper.findAll('.session-actions .icon-btn')).toHaveLength(7)
+      // background / chat(claude) / resume / reveal / export / pin / sink / delete。
+      expect(wrapper.find('.session-actions button[aria-label]').exists()).toBe(true)
+      expect(wrapper.findAll('.session-actions .icon-btn')).toHaveLength(8)
     })
 
     it('keeps history actions but hides Open Chat for Grok Build sessions', () => {
       const wrapper = factory([session()], { agent: 'grok' })
       expect(wrapper.find('.title-rename-ic').exists()).toBe(true)
-      // resume / reveal / export / pin / sink / delete；不含 GUI Open Chat。
-      expect(wrapper.findAll('.session-actions .icon-btn')).toHaveLength(6)
+      // background / resume / reveal / export / pin / sink / delete；不含 GUI Open Chat。
+      expect(wrapper.find('.session-actions button[aria-label]').exists()).toBe(true)
+      expect(wrapper.findAll('.session-actions .icon-btn')).toHaveLength(7)
     })
   })
 

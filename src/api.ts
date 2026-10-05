@@ -25,6 +25,7 @@ import type {
   TrayStats,
   SearchHit,
   UsageSummary,
+  PiSessionPage,
   DiffHunk,
   GitCommit,
   GitFileStatus,
@@ -165,6 +166,22 @@ export const listSessions = (
 
 export const readSession = (agent: Agent, path: string, leafId?: string) =>
   invoke<Msg[]>('read_session', { agent, path, leafId })
+
+export const readPiSessionPage = (
+  path: string,
+  options: {
+    leafId?: string
+    beforeEntryId?: string
+    limit?: number
+    includeTree?: boolean
+  } = {},
+) => invoke<PiSessionPage>('read_pi_session_page', {
+  path,
+  leafId: options.leafId,
+  beforeEntryId: options.beforeEntryId,
+  limit: options.limit,
+  includeTree: options.includeTree ?? false,
+})
 
 export const sessionTree = (agent: Agent, path: string) =>
   invoke<PiTreeNode[]>('session_tree', { agent, path })

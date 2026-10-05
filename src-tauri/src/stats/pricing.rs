@@ -3,7 +3,7 @@
 // sst 维护、opencode 同源)：
 //
 //   - 启动期 `init()` 后台线程拉一份，落盘到
-//     `~/Library/Caches/cc-sessions-viewer/model-pricing-v3.json`（24h TTL）。
+//     `~/Library/Caches/cc-sessions-viewer/model-pricing-v4.json`（24h TTL）。
 //   - `lookup()` 只查这一份内存表 —— 没拉到 / 没命中就返回 None（成本按 $0 计）。
 //   - 前端通过 `pricing_status` Tauri 命令读 `status()`，决定显示
 //     正常 / loading / error placeholder。
@@ -342,9 +342,9 @@ const MODELS_DEV_URL: &str = "https://models.dev/api.json";
 const CACHE_TTL_SECS: u64 = 24 * 60 * 60;
 // 注意：换源时连文件名一起换（旧 litellm-pricing.json 直接弃用），
 // 避免新解析逻辑去读旧格式缓存。
-// v3 changes the primary upstream to js-bridge. Reusing a fresh v2 cache would delay the source
-// change for up to 24 hours, so deliberately refresh once after upgrade.
-const CACHE_FILE_NAME: &str = "model-pricing-v3.json";
+// v4 removes the OpenCode model whitelist and inferred cache prices. Refresh once
+// after upgrade even if the old v3 catalog is still within its 24-hour TTL.
+const CACHE_FILE_NAME: &str = "model-pricing-v4.json";
 
 static REMOTE_PRICING: OnceCell<RwLock<HashMap<String, ModelCosts>>> = OnceCell::new();
 static IS_FETCHING: AtomicBool = AtomicBool::new(false);
@@ -440,7 +440,7 @@ fn pin_date(name: &str) -> Option<u32> {
 }
 
 /// 展示各已接入 CLI 用户实际会跑的聊天模型。入表时已限定原生 provider 和
-/// opencode 白名单，这里的前缀过滤是第二道防线（顺带踢掉 embedding 等非 chat 条目）。
+/// OpenCode 远程目录，这里的前缀过滤是第二道防线（顺带踢掉非 chat 条目）。
 ///
 /// 排序：先 family（claude → codex），再按"版本号自然顺序倒序"
 /// —— 最新型号在前。`claude-opus-4-8` > `claude-opus-4-7` > `claude-opus-4` > `claude-3-7-sonnet`，
@@ -476,6 +476,10 @@ pub fn list_for_ui() -> Vec<PricingEntry> {
             || lower.contains("-search-api")
             || lower.contains("-video")
             || lower.contains("imagine-")
+            || lower.contains("-embedding")
+            || lower.contains("-live-")
+            || lower.starts_with("lyria-")
+            || lower.starts_with("deep-research-")
             || lower.starts_with("gpt-35-")
             || lower == "gpt-35";
         if is_noise {
@@ -626,6 +630,7 @@ pub fn clear_cache_and_refresh() {
 
     if let Some(path) = cache_path() {
         let _ = std::fs::remove_file(&path);
+        let _ = std::fs::remove_file(path.with_file_name("model-pricing-v3.json"));
         let _ = std::fs::remove_file(path.with_file_name("models-dev-pricing-v2.json"));
         let _ = std::fs::remove_file(path.with_file_name("models-dev-pricing.json"));
         let _ = std::fs::remove_file(path.with_file_name("litellm-pricing.json"));
@@ -668,7 +673,7 @@ fn set_last_error(err: Option<String>) {
     }
 }
 
-/// 磁盘缓存路径：`<cache_dir>/cc-sessions-viewer/model-pricing-v3.json`。
+/// 磁盘缓存路径：`<cache_dir>/cc-sessions-viewer/model-pricing-v4.json`。
 /// macOS: `~/Library/Caches/...`；Linux: `~/.cache/...`；Windows: `%LOCALAPPDATA%\...`。
 fn cache_path() -> Option<std::path::PathBuf> {
     let base = dirs::cache_dir()?;
@@ -681,8 +686,12 @@ fn load_from_cache() -> Option<(bool, HashMap<String, ModelCosts>)> {
     if let Some(cached) = read_cache_file(&path) {
         return Some(cached);
     }
-    // 旧缓存只作为离线启动兜底：强制后台按新优先级刷新，成功后只写 v3。
-    for old_name in ["models-dev-pricing-v2.json", "models-dev-pricing.json"] {
+    // 旧缓存只作为离线启动兜底：强制后台刷新完整目录，成功后只写 v4。
+    for old_name in [
+        "model-pricing-v3.json",
+        "models-dev-pricing-v2.json",
+        "models-dev-pricing.json",
+    ] {
         if let Some((_, table)) = read_cache_file(&path.with_file_name(old_name)) {
             return Some((false, table));
         }
@@ -762,96 +771,15 @@ fn save_to_cache(table: &HashMap<String, ModelCosts>) {
 
 /// 解析 models.dev 的根 JSON：`{ <provider>: { models: { <id>: { cost, limit, … } } } }`。
 ///
-/// 两步：
-///   1. anthropic / openai / xai / google —— 原生 CLI 的模型，直接入表。
-///   2. opencode 专属模型（白名单，来源 opencode 官方文档）：逐个在各厂商直连
-///      provider 里查价格（官方价为准），查不到的在 `opencode` provider 里兜底。
+/// 原生 CLI 使用 anthropic / openai / xai / google 官方价格。
+/// OpenCode Zen / Go 直接读取上游完整模型目录和服务价格，不维护模型白名单、
+/// 不把免费变体替换成厂商付费模型，也不为上游缺失的型号编造价格。
+/// 裸 ID 重叠时保留原生厂商价格（Claude / Codex / Grok / AGY 参考价）。
 pub(crate) fn parse_models_dev_json(body: &str) -> Option<HashMap<String, ModelCosts>> {
     const NATIVE_PROVIDERS: &[&str] = &["anthropic", "openai", "xai", "google"];
-    const OPENCODE_DIRECT: &[&str] = &[
-        "deepseek",
-        "kimi-for-coding",
-        "minimax",
-        "opencode-go",
-        "zhipuai",
-        "xiaomi",
-        "xai",
-        "alibaba-cn",
-    ];
-    // opencode 文档列出的专属模型和别名（合并 go + zen 两份文档去重）。
-    // 来源：https://opencode.ai/docs/zh-cn/go/#模型
-    //       https://opencode.ai/docs/zh-cn/zen/#定价
-    const OPENCODE_MODELS: &[&str] = &[
-        "big-pickle",
-        "deepseek-v4-flash-vision-exp",
-        "deepseek-v4-flash",
-        "deepseek-v4-flash-free",
-        "deepseek-v4-pro",
-        "gemini-3.1-pro",
-        "glm-5",
-        "glm-5.1",
-        "glm-5.2",
-        "glm-5.3",
-        "glm-5.3-flash",
-        "glm-5-free",
-        "gpt-5.2-codex",
-        "gpt-5.3-codex",
-        "gpt-5.3-codex-spark",
-        "gpt-5.4",
-        "gpt-5.4-mini",
-        "gpt-5.4-nano",
-        "gpt-5.4-pro",
-        "gpt-5.5",
-        "gpt-5.5-pro",
-        "gpt-5-codex",
-        "gpt-6-astra",
-        "grok-build-0.1",
-        "hy3-free",
-        "hy3-preview-free",
-        "kimi-k2.5",
-        "kimi-k2.5-free",
-        "kimi-k2.6",
-        "kimi-k2.7-code",
-        "kimi-k3",
-        "kimi-k2",
-        "kimi-k2-thinking",
-        "laguna-s-2.1-free",
-        "ling-2.6-flash-free",
-        "ling-3.0-flash-free",
-        "ling-3.0-flash-fin-free",
-        "ling-3.0-tiny-free",
-        "longcat-2.0-free",
-        "mimo-v2.5",
-        "mimo-v2.5-free",
-        "mimo-v2.5-pro",
-        "mimo-v2-flash-free",
-        "mimo-v2-omni-free",
-        "mimo-v2-pro-free",
-        "minimax-m2.5",
-        "minimax-m2.5-free",
-        "minimax-m2.7",
-        "minimax-m3",
-        "minimax-m3-free",
-        "minimax-m2.1",
-        "minimax-m2.1-free",
-        "muse-spark-1.2",
-        "muse-spark-1.2-contributor-free",
-        "muse-spark-1.3-contributor-free",
-        "nemotron-3.5-lightning-free",
-        "nemotron-3-super-free",
-        "nemotron-3-ultra-free",
-        "north-mini-code-free",
-        "qwen3-coder",
-        "qwen3.5-plus",
-        "qwen3.6-plus",
-        "qwen3.6-plus-free",
-        "qwen3.7-max",
-        "qwen3.7-plus",
-        "qwen3.8-max",
-        "ring-2.6-1t-free",
-        "trinity-large-preview-free",
-        "x-preview-f-free",
-    ];
+    // Provider keys are stable routing metadata; model IDs come entirely from
+    // the remote catalog. Zen takes precedence when Zen and Go share an ID.
+    const OPENCODE_PROVIDERS: &[&str] = &["opencode", "opencode-go"];
 
     let value: serde_json::Value = serde_json::from_str(body).ok()?;
     let root = value.as_object()?;
@@ -874,50 +802,19 @@ pub(crate) fn parse_models_dev_json(body: &str) -> Option<HashMap<String, ModelC
         }
     }
 
-    // Step 2: opencode 专属模型——各厂商直连价优先，opencode provider 兜底
-    let mut direct_all: HashMap<String, ModelCosts> = HashMap::new();
-    for prov in OPENCODE_DIRECT {
-        if let Some(models) = root
+    // Step 2: OpenCode's live Zen / Go catalogs, including future model IDs.
+    for prov in OPENCODE_PROVIDERS {
+        let Some(models) = root
             .get(*prov)
             .and_then(|p| p.get("models"))
             .and_then(|m| m.as_object())
-        {
-            for (name, entry) in models.iter() {
-                if let Some(costs) = parse_models_dev_entry(entry) {
-                    direct_all.insert(name.to_ascii_lowercase(), costs);
-                }
-            }
-        }
-    }
-    let oc_models = root
-        .get("opencode")
-        .and_then(|p| p.get("models"))
-        .and_then(|m| m.as_object());
-
-    for id in OPENCODE_MODELS {
-        let lower = id.to_ascii_lowercase();
-        // "-free" 是 opencode 的免费套餐标签，底层模型有厂商官方价——去掉后缀再查。
-        let base = lower.strip_suffix("-free").unwrap_or(&lower);
-        if let Some(costs) = direct_all.get(base).or_else(|| direct_all.get(&lower)) {
-            out.insert(id.to_string(), *costs);
-        } else if let Some(entry) = oc_models.and_then(|m| m.get(*id)) {
+        else {
+            continue;
+        };
+        for (name, entry) in models {
             if let Some(costs) = parse_models_dev_entry(entry) {
-                out.insert(id.to_string(), costs);
+                out.entry(name.clone()).or_insert(costs);
             }
-        } else if *id == "gpt-6-astra" {
-            // OpenCode's published standard-context price; prefer live upstream
-            // data above when it becomes available. The separate 1M-context tier
-            // is not representable in the current single-rate UI.
-            out.insert(
-                id.to_string(),
-                ModelCosts {
-                    input: 10.0e-6,
-                    output: 50.0e-6,
-                    cache_write: 12.5e-6,
-                    cache_read: 1.0e-6,
-                    context: 1_000_000,
-                },
-            );
         }
     }
     if out.is_empty() {
@@ -934,7 +831,8 @@ fn parse_models_dev_entry(v: &serde_json::Value) -> Option<ModelCosts> {
     let cost = obj.get("cost").and_then(|c| c.as_object())?;
     let input = cost.get("input").and_then(|x| x.as_f64())? * PER_MTOK;
     let output = cost.get("output").and_then(|x| x.as_f64())? * PER_MTOK;
-    // 缺 cache 字段沿用旧约定兜底：write = input×1.25，read = input×0.1。
+    // 没公布缓存单价就保持 0（UI 显示未知），不能把 Anthropic 的
+    // write=input×1.25 / read=input×0.1 公式套到其它厂商。
     let cw = cost
         .get("cache_write")
         .and_then(|x| x.as_f64())
@@ -953,8 +851,8 @@ fn parse_models_dev_entry(v: &serde_json::Value) -> Option<ModelCosts> {
     Some(ModelCosts {
         input,
         output,
-        cache_write: cw.unwrap_or(input * 1.25),
-        cache_read: cr.unwrap_or(input * 0.1),
+        cache_write: cw.unwrap_or(0.0),
+        cache_read: cr.unwrap_or(0.0),
         context,
     })
 }
@@ -1508,11 +1406,10 @@ mod tests {
     }
 
     #[test]
-    fn parse_models_dev_json_extracts_costs_and_handles_fallbacks() {
+    fn parse_models_dev_json_extracts_costs_without_inventing_cache_rates() {
         // 覆盖点：
         //   - $/MTok → $/token 换算（÷1e6）+ limit.context 抽取
-        //   - 缺 cache_write：套兜底公式 input × 1.25
-        //   - 缺 cache_read：套兜底公式 input × 0.1
+        //   - 缺 cache_write / cache_read：保持 0，不编造价格
         //   - 没有 cost 的条目（image / 开源权重）跳过
         //   - 非 anthropic/openai 的 provider（镜像网关）整组跳过
         let body = r#"{
@@ -1546,17 +1443,11 @@ mod tests {
         assert_eq!(full.context, 1_000_000);
 
         let no_cw = table.get("gpt-no-cw").expect("no-cw");
-        assert!(
-            (no_cw.cache_write - 2.5e-6).abs() < 1e-15,
-            "input×1.25 fallback"
-        );
+        assert_eq!(no_cw.cache_write, 0.0, "no inferred cache-write price");
         assert_eq!(no_cw.context, 0, "缺 limit → context 0");
 
         let no_cr = table.get("gpt-no-cr").expect("no-cr");
-        assert!(
-            (no_cr.cache_read - 4e-7).abs() < 1e-15,
-            "input×0.1 fallback"
-        );
+        assert_eq!(no_cr.cache_read, 0.0, "no inferred cache-read price");
         assert_eq!(no_cr.context, 400_000);
 
         assert!(!table.contains_key("gpt-image-x"), "无 cost entry 跳过");
@@ -1610,7 +1501,7 @@ mod tests {
     #[test]
     fn parse_models_dev_json_includes_opencode_qwen_3_8_max() {
         let body = r#"{
-            "alibaba-cn": { "models": {
+            "opencode": { "models": {
                 "qwen3.8-max": {
                     "cost": { "input": 1.77744, "output": 5.33231, "cache_read": 0.22218 },
                     "limit": { "context": 1000000, "output": 131072 }
@@ -1725,14 +1616,47 @@ mod tests {
     }
 
     #[test]
-    fn includes_gpt6_astra_standard_context_fallback_price() {
-        let table = parse_models_dev_json(r#"{"opencode":{"models":{}}}"#).expect("parsed");
-        let astra = table.get("gpt-6-astra").expect("gpt-6-astra");
-        assert_eq!(astra.input, 10.0e-6);
-        assert_eq!(astra.output, 50.0e-6);
-        assert_eq!(astra.cache_read, 1.0e-6);
-        assert_eq!(astra.cache_write, 12.5e-6);
-        assert_eq!(astra.context, 1_000_000);
+    fn empty_remote_catalog_does_not_invent_gpt6_astra() {
+        assert!(parse_models_dev_json(r#"{"opencode":{"models":{}}}"#).is_none());
+    }
+
+    #[test]
+    fn opencode_catalog_is_dynamic_and_preserves_service_prices() {
+        let body = r#"{
+            "xai": { "models": {
+                "grok-future-test": { "cost": { "input": 2, "output": 6 } }
+            }},
+            "deepseek": { "models": {
+                "deepseek-future-test": { "cost": { "input": 99, "output": 99 } }
+            }},
+            "opencode": { "models": {
+                "grok-future-test": { "cost": { "input": 9, "output": 18 } },
+                "deepseek-future-test": { "cost": { "input": 0.14, "output": 0.28 } },
+                "deepseek-future-test-free": { "cost": { "input": 0, "output": 0 } },
+                "new-vendor-next-preview": {
+                    "cost": { "input": 0.15, "output": 0.6, "cache_read": 0.003 },
+                    "limit": { "context": 1000000 }
+                },
+                "unknown-price-test": { "limit": { "context": 1000000 } }
+            }},
+            "opencode-go": { "models": {
+                "new-vendor-next-preview": { "cost": { "input": 7, "output": 8 } },
+                "go-only-next-model": { "cost": { "input": 0.1, "output": 0.2 } }
+            }}
+        }"#;
+        let table = parse_models_dev_json(body).expect("parsed");
+        let next = table.get("new-vendor-next-preview").expect("unlisted model");
+        assert!((next.input - 0.15e-6).abs() < 1e-15);
+        assert!((next.output - 0.6e-6).abs() < 1e-15);
+        assert!((next.cache_read - 0.003e-6).abs() < 1e-15);
+        assert_eq!(next.cache_write, 0.0);
+        assert_eq!(next.context, 1_000_000);
+        assert!((table["grok-future-test"].input - 2e-6).abs() < 1e-15);
+        assert!((table["deepseek-future-test"].input - 0.14e-6).abs() < 1e-15);
+        assert_eq!(table["deepseek-future-test-free"].input, 0.0);
+        assert_eq!(table["deepseek-future-test-free"].output, 0.0);
+        assert!(table.contains_key("go-only-next-model"));
+        assert!(!table.contains_key("unknown-price-test"));
     }
 
     #[test]

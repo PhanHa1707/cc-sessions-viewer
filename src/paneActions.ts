@@ -36,6 +36,7 @@ export interface PaneActions {
   newShellSession: () => void
   hydrateSavedTab: (saved: SavedTab) => void
   // —— ChatView（GUI chat tab）——
+  backFromLiveChat: () => void
   closeLiveChat: (tabUiId?: number) => void
   openRenameLiveChat: () => void
   forkLiveChat: () => void
@@ -51,7 +52,8 @@ export interface PaneActions {
   deleteFromLiveChat: () => void
   // —— ChatView（只读会话 tab）——
   closeActiveViewTab: () => void
-  openChat: (s: SessionMeta) => void
+  openChat: (s: SessionMeta) => Promise<void>
+  openChatInBackground: (s: SessionMeta) => Promise<void>
   deleteSession: (s: SessionMeta) => void
   resumeHere: (s: SessionMeta) => void
   resumeChatFromSession: (s: SessionMeta) => void
@@ -61,6 +63,8 @@ export interface PaneActions {
   restore: (item: TrashItem) => void
   openSessionStats: () => void
   switchPiLeaf: (leafId: string) => void
+  loadOlderPiPage: (tabUiId: number) => void
+  loadAllPiHistory: (tabUiId: number) => void
   reveal: (path: string) => void
   // —— SessionsView（项目主页 / 会话列表）——
   chatFromList: (s: SessionMeta) => void

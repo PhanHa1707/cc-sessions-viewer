@@ -2082,6 +2082,7 @@ body.is-project-reordering * {
 /* 用 JS 驱动的 .is-hover 而非 CSS :hover：虚拟列表回收 DOM 节点时，
    WebKit 的 :hover 伪类会在多个物理节点上卡住，导致多行同时亮起。 */
 .session-card.is-hover .session-actions,
+.session-card:focus-within .session-actions,
 /* 菜单展开期间强制保活：.export-menu 是 .session-actions 的后代，
    靠父级 opacity 显隐，hover 一旦移走菜单会随父级一起隐没。 */
 .session-card.menu-open .session-actions {
@@ -2124,12 +2125,13 @@ body.is-project-reordering * {
   background: var(--surface-hover);
   color: var(--text);
 }
-/* 只读会话的工具调用开关：普通扳手 = 正在显示，带斜杠 = 已隐藏。
-   不能仅依赖 active 底色，否则在紧凑顶栏里很难和同排图标区分状态。 */
-.tool-calls-toggle {
+/* 只读会话的过程内容开关：图标斜杠提示当前已隐藏。 */
+.tool-calls-toggle,
+.reasoning-toggle {
   position: relative;
 }
-.tool-calls-toggle.is-hidden::after {
+.tool-calls-toggle.is-hidden::after,
+.reasoning-toggle.is-hidden::after {
   content: '';
   position: absolute;
   width: 21px;
@@ -2183,6 +2185,31 @@ body.is-project-reordering * {
   width: 16px;
   height: 16px;
   color: var(--text-dim);
+}
+.chat-more-menu {
+  min-width: 220px;
+}
+.chat-more-export-wrap {
+  position: relative;
+  display: flex;
+}
+.chat-more-export-wrap::before {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: -7px;
+  width: 7px;
+  content: '';
+}
+.chat-more-export-trigger {
+  width: 100%;
+}
+.chat-more-chevron {
+  margin-left: auto;
+}
+.chat-more-export-menu {
+  top: 0;
+  right: calc(100% + 6px);
 }
 
 /* ---------- Locate (jump-to-prompt) menu ---------- */
@@ -2889,6 +2916,23 @@ mark.locate-hl {
   /* chat content needs to be selectable so users can copy text / code */
   user-select: text;
   -webkit-user-select: text;
+}
+.pi-history-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 32px;
+  color: var(--text-mute);
+  font-size: 12px;
+}
+.pi-history-spinner {
+  width: 12px;
+  height: 12px;
+  border: 1.5px solid var(--border-strong);
+  border-top-color: var(--text);
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
 }
 /* live chat：滚动区底部柔化 —— 内容贴近输入框时用渐变淡出，而不是被生硬截断
    （参考 Claude 客户端）。仅 live（有 composer）时加；mask 让视口底部 ~52px 的内容
@@ -4092,6 +4136,27 @@ details[open] > .thinking-summary .thinking-chev {
   font-size: 13px;
   line-height: 1.65;
   color: color-mix(in srgb, var(--text-dim) 68%, var(--bg));
+}
+.reasoning-group-body {
+  margin: 6px 0 2px 8px;
+  padding-left: 17px;
+  border-left: 1px solid var(--border);
+}
+.reasoning-group-step + .reasoning-group-step {
+  margin-top: 10px;
+  padding-top: 9px;
+  border-top: 1px solid color-mix(in srgb, var(--border) 65%, transparent);
+}
+.reasoning-group-step-label {
+  margin: 0 0 4px;
+  color: var(--text-mute);
+  font-size: 11px;
+  font-weight: 500;
+}
+.reasoning-group-step .thinking-content {
+  margin: 0 0 3px;
+  padding: 0;
+  border: 0;
 }
 .thinking-content > :first-child {
   margin-top: 0;

@@ -514,9 +514,38 @@ describe('chatSessions Codex custom provider compatibility', () => {
     )
   })
 
-  it('preserves explicitly provided Codex custom-provider model and effort', async () => {
+  it.each(['deepseek-v4-flash', 'minimax-m3', 'custom-vendor-model'])(
+    'prefers the actual configured model %s over stale GUI defaults for a new chat',
+    async (configuredModel) => {
+      rememberChatGuiPreference('codex', { model: 'gpt-5.5', effort: 'xhigh' })
+      invokeMock.mockImplementation((command: string) => {
+        if (command === 'codex_runtime_info') return Promise.resolve({ usesApiKey: true, model: configuredModel, effort: 'medium' })
+        if (command === 'agent_chat_start') return Promise.resolve({ chatId: 6, processModel: 'codexAppServer' })
+        return Promise.resolve(undefined)
+      })
+      const s = await startChat({ agent: 'codex', projectKey: 'proj', cwd: '/tmp', title: 'Configured' })
+      expect(s.model).toBe(configuredModel)
+      expect(s.lastModel).toBe(configuredModel)
+      expect(s.effort).toBe('medium')
+      expect(invokeMock).toHaveBeenCalledWith('agent_chat_start', expect.objectContaining({ model: configuredModel, effort: 'medium' }))
+    },
+  )
+
+  it('does not invent an official model when a custom provider has no configured or historical model', async () => {
+    rememberChatGuiPreference('codex', { model: 'gpt-5.5' })
     invokeMock.mockImplementation((command: string) => {
       if (command === 'codex_runtime_info') return Promise.resolve({ usesApiKey: true })
+      if (command === 'agent_chat_start') return Promise.resolve({ chatId: 7, processModel: 'codexAppServer' })
+      return Promise.resolve(undefined)
+    })
+    const s = await startChat({ agent: 'codex', projectKey: 'proj', cwd: '/tmp', title: 'Custom' })
+    expect(s.model).toBeUndefined()
+    expect(invokeMock).toHaveBeenCalledWith('agent_chat_start', expect.objectContaining({ model: undefined }))
+  })
+
+  it('preserves explicitly provided Codex custom-provider model and effort', async () => {
+    invokeMock.mockImplementation((command: string) => {
+      if (command === 'codex_runtime_info') return Promise.resolve({ usesApiKey: true, model: 'configured-other-model', effort: 'low' })
       if (command === 'agent_chat_start') return Promise.resolve({ chatId: 3, processModel: 'codexAppServer' })
       return Promise.resolve(undefined)
     })
@@ -542,9 +571,9 @@ describe('chatSessions Codex custom provider compatibility', () => {
     )
   })
 
-  it('does not apply global Codex config when resuming an existing chat', async () => {
+  it('selects current global custom-provider config when reopening a historical chat', async () => {
     invokeMock.mockImplementation((command: string) => {
-      if (command === 'codex_runtime_info') return Promise.resolve({ usesApiKey: true, model: 'gpt-5.6-sol', effort: 'high' })
+      if (command === 'codex_runtime_info') return Promise.resolve({ usesApiKey: true, model: 'configured-third-party-model', effort: 'high' })
       if (command === 'agent_chat_start') return Promise.resolve({ chatId: 4, processModel: 'codexAppServer' })
       return Promise.resolve(undefined)
     })
@@ -565,19 +594,64 @@ describe('chatSessions Codex custom provider compatibility', () => {
       ],
     })
 
-    expect(s.model).toBe('gpt-5.5')
+    expect(s.model).toBe('configured-third-party-model')
     expect(s.effort).toBe('high')
-    expect(s.lastModel).toBe('gpt-5.6-luna')
-    expect(invokeMock).not.toHaveBeenCalledWith('codex_runtime_info')
+    expect(s.lastModel).toBe('configured-third-party-model')
+    expect(invokeMock).toHaveBeenCalledWith('codex_runtime_info')
     expect(invokeMock).toHaveBeenCalledWith(
       'agent_chat_start',
       expect.objectContaining({
         agent: 'codex',
         sessionId: 'thread-1',
-        model: 'gpt-5.5',
+        model: 'configured-third-party-model',
         effort: 'high',
       }),
     )
+  })
+
+  it('keeps an explicit model choice when reopening a custom-provider session', async () => {
+    invokeMock.mockImplementation((command: string) => {
+      if (command === 'codex_runtime_info') return Promise.resolve({ usesApiKey: true, model: 'global-model', effort: 'low' })
+      if (command === 'agent_chat_start') return Promise.resolve({ chatId: 8, processModel: 'codexAppServer' })
+      return Promise.resolve(undefined)
+    })
+    const s = await startChat({
+      agent: 'codex', projectKey: 'proj', cwd: '/tmp', title: 'Explicit',
+      sessionId: 'thread-1', model: 'chosen-model', effort: 'high',
+    })
+    expect(s.model).toBe('chosen-model')
+    expect(s.effort).toBe('high')
+    expect(invokeMock).toHaveBeenCalledWith('agent_chat_start', expect.objectContaining({ model: 'chosen-model', effort: 'high' }))
+  })
+
+  it('preserves a third-party historical model if the custom provider omits its default', async () => {
+    invokeMock.mockImplementation((command: string) => {
+      if (command === 'codex_runtime_info') return Promise.resolve({ usesApiKey: true })
+      if (command === 'agent_chat_start') return Promise.resolve({ chatId: 9, processModel: 'codexAppServer' })
+      return Promise.resolve(undefined)
+    })
+    const s = await startChat({
+      agent: 'codex', projectKey: 'proj', cwd: '/tmp', title: 'History', sessionId: 'thread-1',
+      preloadMsgs: [{ role: 'assistant', sidechain: false, model: 'historical-custom-model', blocks: [] }],
+    })
+    expect(s.model).toBe('historical-custom-model')
+    expect(s.lastModel).toBe('historical-custom-model')
+  })
+
+  it('keeps official resumed chats on their historical GPT model rather than global custom defaults', async () => {
+    rememberChatGuiPreference('codex', { model: 'gpt-5.5' })
+    invokeMock.mockImplementation((command: string) => {
+      if (command === 'codex_runtime_info') return Promise.resolve({ usesApiKey: false, model: 'global-config-model' })
+      if (command === 'agent_chat_start') return Promise.resolve({ chatId: 10, processModel: 'codexAppServer' })
+      return Promise.resolve(undefined)
+    })
+    const s = await startChat({
+      agent: 'codex', projectKey: 'proj', cwd: '/tmp', title: 'Official', sessionId: 'thread-1',
+      preloadMsgs: [{ role: 'assistant', sidechain: false, model: 'gpt-6-luna', blocks: [] }],
+    })
+    expect(s.model).toBe('gpt-6-luna')
+    expect(s.lastModel).toBe('gpt-6-luna')
+    expect(invokeMock).toHaveBeenCalledWith('agent_chat_start', expect.objectContaining({ model: 'gpt-6-luna' }))
   })
 })
 

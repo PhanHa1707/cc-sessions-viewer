@@ -12,7 +12,7 @@ import { renderAllMath } from '../mathRender'
 import { highlightAllCodeBlocks, rehighlightAllCodeBlocks } from '../shikiHighlight'
 import { decorateCodeBlocks } from '../codeCopy'
 import { shouldVirtualize as shouldVirtualizeMessages } from '../renderLimits'
-import { theme, showToolCalls, showChatRail, chatRailCount } from '../settings'
+import { theme, showToolCalls, showThinking, showChatRail, chatRailCount } from '../settings'
 import { t } from '../i18n'
 import ToolResult from '../components/ToolResult.vue'
 import CollapsibleBox from '../components/CollapsibleBox.vue'
@@ -34,6 +34,7 @@ import {
 } from '../chatToolbar'
 import {
   IconArrowLeft,
+  IconList,
   IconRefresh,
   IconTrash,
   IconRestore,
@@ -50,6 +51,7 @@ import {
   IconCopy,
   IconCheck,
   IconDownload,
+  IconMore,
   IconMarkdown,
   IconHtml,
   IconJson,
@@ -117,13 +119,31 @@ const props = defineProps<{
   liveSession?: ChatSession | null
   /** live 模式下是否有「来源只读会话」可回看 —— 有才显示头部「切到 read」按钮。 */
   hasReadView?: boolean
+  /** 只读详情页内的会话切换器是否可用 / 当前是否展开。 */
+  sessionNavigatorEnabled?: boolean
+  sessionNavigatorOpen?: boolean
   /** Pi's parent-linked transcript tree, supplied for read-only sessions. */
   piTree?: PiTreeNode[] | null
   piLeafId?: string | null
+  piHasOlder?: boolean
+  piLoadingOlder?: boolean
+  piStats?: { user: number; assistant: number } | null
 }>()
+
+type ThinkingStep = { block: Block; messageIndex: number; blockIndex: number }
+type DisplayBlockEntry = {
+  kind: 'block' | 'thinking-group'
+  block: Block
+  blockIndex: number
+  steps?: ThinkingStep[]
+}
+type ChatDisplayRow =
+  | { kind: 'message'; key: string; sourceIndex: number; sourceIndices: number[] }
+  | { kind: 'thinking-group'; key: string; sourceIndex: number; sourceIndices: number[]; thinkingSourceIndices: number[]; steps: ThinkingStep[]; hidden: boolean }
 
 const emit = defineEmits<{
   back: []
+  toggleSessionNavigator: []
   refresh: []
   delete: []
   /** 入口 2：让父组件 openOrFocusTui，开（或聚焦已有）一个 TUI tab。 */
@@ -147,6 +167,8 @@ const emit = defineEmits<{
    *  topbar + chat-head 两排 icon-only 按钮重叠的扫描负担。 */
   openSessionStats: []
   piLeafChange: [leafId: string]
+  loadPiOlder: []
+  loadPiAll: []
   archive: []
   /** 头部星标：把当前会话收藏 / 取消收藏到「Views」历史。 */
 }>()
@@ -322,9 +344,19 @@ const readToolCallsVisible = computed(() =>
 function toggleReadToolCalls() {
   readToolCallsOverride.value = !readToolCallsVisible.value
 }
+const readThinkingOverride = ref<boolean | null>(null)
+const readThinkingVisible = computed(() =>
+  props.liveSession ? showThinking.value : readThinkingOverride.value ?? showThinking.value,
+)
+function toggleReadThinking() {
+  readThinkingOverride.value = !readThinkingVisible.value
+}
 watch(
   () => `${props.session.id}:${props.session.path}`,
-  () => { readToolCallsOverride.value = null },
+  () => {
+    readToolCallsOverride.value = null
+    readThinkingOverride.value = null
+  },
 )
 
 function isToolOnly(m: Msg): boolean {
@@ -697,10 +729,65 @@ function rowHasContent(m: Msg): boolean {
   // tool-test instruction is protocol scaffolding and would only duplicate it.
   if (isAskUserQuestionInstructionOnlyMsg(m)) return false
   return m.blocks.some((b) => {
-    if (b.kind === 'text' || b.kind === 'thinking' || b.kind === 'file' || b.kind === 'image') return true
+    if (b.kind === 'text' || b.kind === 'file' || b.kind === 'image') return true
+    if (b.kind === 'thinking') return readThinkingVisible.value
     if (b.kind === 'tool_use') return shouldShowToolUse(b) || !!attachedResultFor(b)
     return shouldShowToolResult(b)
   })
+}
+
+function isHiddenToolBlock(block: Block): boolean {
+  if (block.kind === 'tool_use') return !shouldShowToolUse(block)
+  if (block.kind === 'tool_result') return !shouldShowToolResult(block)
+  return false
+}
+
+/** Some agents store each reasoning/tool-call cycle across assistant and user
+ * protocol records (Claude uses user-role tool_result rows). Hidden tool rows
+ * should not split one visible reasoning sequence into separate cards. */
+function isThinkingDisplayMessage(m: Msg): boolean {
+  return !m.metaKind && effectiveRole(m) === 'assistant' &&
+    m.blocks.some((block) => block.kind === 'thinking') &&
+    m.blocks.every((block) => block.kind === 'thinking' || isHiddenToolBlock(block))
+}
+
+function isHiddenToolOnlyMessage(m: Msg): boolean {
+  const role = effectiveRole(m)
+  if (m.metaKind || m.blocks.length === 0 || (role !== 'assistant' && role !== 'user')) return false
+  return m.blocks.every((block) => {
+    if (block.kind === 'tool_result') return isHiddenToolBlock(block)
+    return role === 'assistant' && block.kind === 'tool_use' && isHiddenToolBlock(block)
+  })
+}
+
+/** Consecutive reasoning blocks in a mixed assistant message become one folded display entry.
+ * Their original block indices stay attached so tool-result routing and search still use source data. */
+function displayBlocks(m: Msg, messageIndex: number): DisplayBlockEntry[] {
+  const entries: DisplayBlockEntry[] = []
+  for (let i = 0; i < m.blocks.length;) {
+    const block = m.blocks[i]
+    if (block.kind === 'thinking' && !readThinkingVisible.value) {
+      i += 1
+      continue
+    }
+    if (block.kind === 'thinking') {
+      let end = i + 1
+      while (end < m.blocks.length && m.blocks[end].kind === 'thinking') end += 1
+      const steps = m.blocks.slice(i, end).map((step, offset) => ({
+        block: step,
+        messageIndex,
+        blockIndex: i + offset,
+      }))
+      if (steps.length > 1) {
+        entries.push({ kind: 'thinking-group', block, blockIndex: i, steps })
+        i = end
+        continue
+      }
+    }
+    entries.push({ kind: 'block', block, blockIndex: i })
+    i += 1
+  }
+  return entries
 }
 
 // ---- 图片：缩略图浮在气泡上方（参考 Claude 客户端），不进灰底气泡 ----
@@ -932,6 +1019,18 @@ function toggleHideMsg(m: Msg, idx: number) {
   saveHiddenSet(set)
 }
 
+function toggleHideThinkingGroup(group: Extract<ChatDisplayRow, { kind: 'thinking-group' }>) {
+  const set = new Set(hiddenIds.value)
+  const shouldHide = !group.hidden
+  for (const index of group.thinkingSourceIndices) {
+    const key = msgKey(props.messages[index], index)
+    if (shouldHide) set.add(key)
+    else set.delete(key)
+  }
+  hiddenIds.value = set
+  saveHiddenSet(set)
+}
+
 // 当前悬停的消息键。用 JS 状态而非纯 CSS :hover 来驱动操作行的显隐——live chat 流式
 // 重渲染时 Chromium 的 :hover 伪类可能「粘」在旧行上，导致多行操作行同时常亮、移走也不
 // 收（用户反馈：hover A 再 hover 别的都不自动隐藏）。改成 mouseenter/leave 维护单一键，
@@ -1062,6 +1161,9 @@ function metaFieldsOf(text: string): MetaField[] | null {
 }
 
 const stats = computed(() => {
+  if (props.agent === 'pi' && props.piStats) {
+    return { u: props.piStats.user, a: props.piStats.assistant }
+  }
   const u = props.messages.filter(
     (m) =>
       effectiveRole(m) === 'user' &&
@@ -1206,6 +1308,75 @@ const listScrollMargin = ref(0)
 //
 // 判定同时看条数和正文体积（见 renderLimits.ts）：只看条数会漏掉「20 条 × 每条 500 KB」
 // 这类会话 —— 条数远没到 80，DOM 却一样会被撑爆。
+const displayList = computed(() => {
+  const rows: ChatDisplayRow[] = []
+  for (let index = 0; index < props.messages.length;) {
+    const message = props.messages[index]
+    if (readThinkingVisible.value && isThinkingDisplayMessage(message)) {
+      const hidden = isHidden(message, index)
+      let end = index
+      const sourceIndices: number[] = []
+      const thinkingSourceIndices: number[] = []
+      const steps: ThinkingStep[] = []
+      while (end < props.messages.length) {
+        const nextMessage = props.messages[end]
+        if (isThinkingDisplayMessage(nextMessage) && isHidden(nextMessage, end) === hidden) {
+          sourceIndices.push(end)
+          thinkingSourceIndices.push(end)
+          nextMessage.blocks.forEach((block, blockIndex) => {
+            if (block.kind === 'thinking') steps.push({ block, messageIndex: end, blockIndex })
+          })
+          end += 1
+          continue
+        }
+        if (isHiddenToolOnlyMessage(nextMessage)) {
+          sourceIndices.push(end)
+          end += 1
+          continue
+        }
+        break
+      }
+      if (steps.length > 1) {
+        rows.push({
+          kind: 'thinking-group',
+          key: `thinking:${message.uuid ?? index}`,
+          sourceIndex: index,
+          sourceIndices,
+          thinkingSourceIndices,
+          steps,
+          hidden,
+        })
+        index = end
+      } else {
+        rows.push({
+          kind: 'message',
+          key: message.uuid ?? `message:${index}`,
+          sourceIndex: index,
+          sourceIndices: [index],
+        })
+        index += 1
+      }
+      continue
+    }
+    rows.push({
+      kind: 'message',
+      key: message.uuid ?? `message:${index}`,
+      sourceIndex: index,
+      sourceIndices: [index],
+    })
+    index += 1
+  }
+  const sourceToDisplayIndex = Array<number>(props.messages.length)
+  rows.forEach((row, displayIndex) => {
+    row.sourceIndices.forEach((sourceIndex) => { sourceToDisplayIndex[sourceIndex] = displayIndex })
+  })
+  return { rows, sourceToDisplayIndex }
+})
+const displayRows = computed(() => displayList.value.rows)
+function displayIndexForSource(sourceIndex: number): number {
+  return displayList.value.sourceToDisplayIndex[sourceIndex] ?? sourceIndex
+}
+
 const shouldVirtualize = computed(() => shouldVirtualizeMessages(props.messages))
 function measureListMargin() {
   const s = scrollEl.value
@@ -1216,7 +1387,7 @@ function measureListMargin() {
 
 const rowVirtualizer = useVirtualizer(
   computed(() => ({
-    count: props.messages.length,
+    count: displayRows.value.length,
     enabled: shouldVirtualize.value,
     getScrollElement: () => scrollEl.value ?? null,
     // 粗估行高（未测量的行用它撑起滚动条几何）；测到真高后自动替换。取接近真实均值,减少大跳
@@ -1225,7 +1396,7 @@ const rowVirtualizer = useVirtualizer(
     estimateSize: () => 110,
     // overscan：视口上下各多渲染的行数 —— 缓冲区,快速滚动时先垫住,避免白板。给大一点。
     overscan: 20,
-    getItemKey: (i: number) => props.messages[i]?.uuid ?? i,
+    getItemKey: (i: number) => displayRows.value[i]?.key ?? i,
     scrollMargin: listScrollMargin.value,
     // ⚠️ 用 offsetHeight，不要用 getBoundingClientRect().height。本 app 的 body 有 CSS zoom(≈0.9)：
     // gBCR 返回的是**视觉坐标**(已 ×0.9)，而虚拟器定位用的 translateY / scrollTop / scrollHeight 都在
@@ -1236,8 +1407,14 @@ const rowVirtualizer = useVirtualizer(
   })),
 )
 const renderedRows = computed(() => {
-  if (shouldVirtualize.value) return rowVirtualizer.value.getVirtualItems()
-  return props.messages.map((_message, index) => ({ index, start: 0 }))
+  if (shouldVirtualize.value) {
+    return rowVirtualizer.value.getVirtualItems().map((row) => ({
+      ...row,
+      index: displayRows.value[row.index]?.sourceIndex ?? row.index,
+      displayIndex: row.index,
+    }))
+  }
+  return displayRows.value.map((row, displayIndex) => ({ index: row.sourceIndex, displayIndex, start: 0 }))
 })
 const totalSize = computed(() => rowVirtualizer.value.getTotalSize())
 // 每个可见行绑到它,TanStack 用 data-index 认领并挂 ResizeObserver 动态测高。
@@ -1344,7 +1521,7 @@ function scrollToBottom() {
     return
   }
   // 只读：末行高度多为估算,直接 scrollHeight 会落不到真底 —— 交给虚拟器逐帧测量对齐到末行。
-  const n = props.messages.length
+  const n = displayRows.value.length
   if (n > 0) rowVirtualizer.value.scrollToIndex(n - 1, { align: 'end' })
 }
 
@@ -1375,6 +1552,7 @@ function flashMessage(idx: number, uuid?: string) {
     if (found >= 0) realIdx = found
   }
   if (realIdx < 0 || realIdx >= props.messages.length) return
+  const displayIdx = displayIndexForSource(realIdx)
 
   cancelFlashStick()
   cancelScroll()
@@ -1383,11 +1561,11 @@ function flashMessage(idx: number, uuid?: string) {
   // 这类会话直接滚动已挂载的消息行。长会话继续交给虚拟器处理窗口外的行。
   const scrollTarget = () => {
     if (shouldVirtualize.value) {
-      rowVirtualizer.value.scrollToIndex(realIdx, { align: 'center' })
+      rowVirtualizer.value.scrollToIndex(displayIdx, { align: 'center' })
       return
     }
     const row = innerEl.value?.querySelector<HTMLElement>(
-      `.msg-vrow[data-index="${realIdx}"]`,
+      `.msg-vrow[data-index="${displayIdx}"]`,
     )
     row?.scrollIntoView({ block: 'center', behavior: 'auto' })
   }
@@ -1485,11 +1663,42 @@ function updateEdges() {
   }
 }
 let rafEdge = 0
+let pendingPiPrependAnchor: string | null = null
+let pendingPiPrependCount: number | null = null
+function capturePiPrependAnchor() {
+  const firstVisible = rowVirtualizer.value.getVirtualItems()[0]
+  const visibleRow = displayRows.value[firstVisible?.index ?? 0]
+  pendingPiPrependAnchor = props.messages[visibleRow?.sourceIndex ?? 0]?.uuid ?? null
+  pendingPiPrependCount = props.messages.length
+}
+watch(
+  () => props.piLoadingOlder,
+  (loading) => {
+    if (loading && props.agent === 'pi' && !pendingPiPrependAnchor) capturePiPrependAnchor()
+    if (!loading && pendingPiPrependAnchor) {
+      const messageCount = pendingPiPrependCount
+      nextTick(() => {
+        if (messageCount === props.messages.length) {
+          pendingPiPrependAnchor = null
+          pendingPiPrependCount = null
+        }
+      })
+    }
+  },
+)
 function onScroll() {
   if (rafEdge) return
   rafEdge = requestAnimationFrame(() => {
     rafEdge = 0
     updateEdges()
+    const scroll = scrollEl.value
+    if (
+      props.agent === 'pi' && props.piHasOlder && !props.piLoadingOlder &&
+      scroll && scroll.scrollTop <= 320
+    ) {
+      capturePiPrependAnchor()
+      emit('loadPiOlder')
+    }
     if (search.value) markVisibleSearch(false)
     refreshRailActive()
   })
@@ -1514,8 +1723,10 @@ function refreshRailActive() {
   let visibleCurrent: number | null = null
   let visibleDistance = Number.POSITIVE_INFINITY
   for (const row of el.querySelectorAll<HTMLElement>('.msg-vrow[data-index]')) {
-    const index = Number(row.dataset.index)
-    if (!promptIndexSet.value.has(index)) continue
+    const displayIndex = Number(row.dataset.index)
+    const displayRow = displayRows.value[displayIndex]
+    if (!displayRow || displayRow.kind !== 'message' || !promptIndexSet.value.has(displayRow.sourceIndex)) continue
+    const index = displayRow.sourceIndex
     const rect = row.getBoundingClientRect()
     if (rect.height === 0) continue
     const distance = Math.abs(rect.top + rect.height / 2 - screenCenter)
@@ -1537,7 +1748,7 @@ function refreshRailActive() {
   let cur: number | null = null
   let closestDistance = Number.POSITIVE_INFINITY
   for (const p of entries) {
-    const off = rowVirtualizer.value.getOffsetForIndex(p.idx, 'start')
+    const off = rowVirtualizer.value.getOffsetForIndex(displayIndexForSource(p.idx), 'start')
     if (off == null) continue
     const distance = Math.abs(off[0] - line)
     if (distance < closestDistance) {
@@ -1642,16 +1853,16 @@ const vRichHtml = {
 const openDetails = reactive(new Set<string>())
 const explicitDetails = reactive(new Set<string>())
 
-function detailKey(mi: number, bi: number, suffix?: string): string {
+function detailKey(mi: number | string, bi: number, suffix?: string): string {
   return suffix ? `${mi}-${bi}-${suffix}` : `${mi}-${bi}`
 }
-function isDetailOpen(mi: number, bi: number, suffix?: string): boolean | undefined {
+function isDetailOpen(mi: number | string, bi: number, suffix?: string): boolean | undefined {
   const key = detailKey(mi, bi, suffix)
   return openDetails.has(key) ? true : explicitDetails.has(key) ? false : undefined
 }
-function onDetailToggle(mi: number, bi: number, ev: Event) {
+function onDetailToggle(mi: number | string, bi: number, ev: Event, suffix?: string) {
   const el = ev.target as HTMLDetailsElement
-  const key = detailKey(mi, bi)
+  const key = detailKey(mi, bi, suffix)
   explicitDetails.add(key)
   if (el.open) openDetails.add(key)
   else openDetails.delete(key)
@@ -1670,7 +1881,7 @@ function sweepDetails(open: boolean) {
       if (m.metaKind) openDetails.add(detailKey(mi, -1))
       for (let bi = 0; bi < m.blocks.length; bi++) {
         const b = m.blocks[bi]
-        if (b.kind === 'thinking' || b.kind === 'tool_use') {
+        if ((b.kind === 'thinking' && readThinkingVisible.value) || b.kind === 'tool_use') {
           openDetails.add(detailKey(mi, bi))
           openDetails.add(detailKey(mi, bi, 'r'))
         }
@@ -1678,6 +1889,14 @@ function sweepDetails(open: boolean) {
           openDetails.add(detailKey(mi, bi, 'r'))
         }
       }
+      for (const entry of displayBlocks(m, mi)) {
+        if (entry.kind === 'thinking-group') {
+          openDetails.add(detailKey(m.uuid ?? mi, entry.blockIndex, 'thinking-group'))
+        }
+      }
+    }
+    for (const row of displayRows.value) {
+      if (row.kind === 'thinking-group') openDetails.add(detailKey(row.key, -1))
     }
   } else {
     openDetails.clear()
@@ -1727,6 +1946,7 @@ function messageSegments(m: Msg): { scope: string; text: string }[] {
   const rscope = rowScope(m)
   const segs: { scope: string; text: string }[] = []
   for (const b of m.blocks) {
+    if (b.kind === 'thinking' && !readThinkingVisible.value) continue
     if (b.kind === 'tool_use') {
       const attached = attachedResultFor(b)
       if (!shouldShowToolUse(b)) {
@@ -1841,7 +2061,8 @@ function applyCurrentClass(scroll = true) {
   marks.forEach((mk) => mk.classList.remove('current'))
   const mi = currentHitMsgIndex()
   if (mi == null) return
-  const row = innerEl.value?.querySelector<HTMLElement>(`.msg-vrow[data-index="${mi}"]`)
+  const displayIndex = displayIndexForSource(mi)
+  const row = innerEl.value?.querySelector<HTMLElement>(`.msg-vrow[data-index="${displayIndex}"]`)
   const first = row?.querySelector<HTMLElement>('mark.search-hit')
   if (!first) return
   first.classList.add('current')
@@ -1861,12 +2082,13 @@ function gotoHit(k: number) {
   const idx = ((k - 1 + searchHits.length) % searchHits.length) + 1
   searchIndex.value = idx
   const mi = searchHits[idx - 1]
-  rowVirtualizer.value.scrollToIndex(mi, { align: 'center' })
+  const displayIndex = displayIndexForSource(mi)
+  rowVirtualizer.value.scrollToIndex(displayIndex, { align: 'center' })
   // 用 setTimeout 而非 rAF 轮询等待目标行挂载：窗口被遮挡(visibilityState=hidden)时 rAF 会
   // 被暂停,marking 就永远不跑;Vue 的渲染调度不依赖 rAF,所以 setTimeout 能在隐藏时照常收敛。
   let tries = 0
   const settle = () => {
-    const row = innerEl.value?.querySelector(`.msg-vrow[data-index="${mi}"]`)
+    const row = innerEl.value?.querySelector(`.msg-vrow[data-index="${displayIndex}"]`)
     if (!row && tries++ < 20) {
       setTimeout(settle, 16)
       return
@@ -1888,7 +2110,8 @@ function navigateMatches(dir: 1 | -1) {
   gotoHit(searchIndex.value + dir)
 }
 
-watch(search, () => {
+watch(search, (query) => {
+  if (query && props.agent === 'pi' && props.piHasOlder) emit('loadPiAll')
   // 短文本输入会快速变更，debounce 避免每按一键都重写一遍 DOM
   window.clearTimeout(searchDebounce)
   searchDebounce = window.setTimeout(applySearch, 120)
@@ -1897,6 +2120,14 @@ watch(search, () => {
 // 切换搜索范围时立即重做（不 debounce —— 是离散操作）
 watch(searchScope, () => {
   if (search.value) applySearch()
+})
+
+watch(readThinkingVisible, () => {
+  nextTick(() => {
+    if (shouldVirtualize.value) rowVirtualizer.value.measure()
+    if (search.value) applySearch()
+    refreshRailActive()
+  })
 })
 
 // 消息变化（切换会话 / 刷新）后重建搜索标记。Markdown 的 Mermaid / KaTeX / Shiki
@@ -1915,6 +2146,15 @@ watch(
   () => props.messages,
   () => {
     nextTick(() => {
+      const anchor = pendingPiPrependAnchor
+      pendingPiPrependAnchor = null
+      pendingPiPrependCount = null
+      if (anchor) {
+        const index = props.messages.findIndex((message) => message.uuid === anchor)
+        if (index >= 0 && shouldVirtualize.value) {
+          rowVirtualizer.value.scrollToIndex(displayIndexForSource(index), { align: 'start' })
+        }
+      }
       refreshRailActive()
       if (search.value) applySearch()
       // 聊天进行中：变化前贴底 → 钉到最新消息（钉一小段，扛住高亮/图片异步撑高）。
@@ -2019,6 +2259,8 @@ onMounted(() => {
     if (props.liveSession) {
       wasAtBottomBeforeUpdate = true
       pinToBottomFor(600)
+    } else if (props.agent === 'pi' && props.piHasOlder) {
+      scrollToBottom()
     }
   })
 })
@@ -2043,16 +2285,33 @@ onUnmounted(() => {
   document.removeEventListener('click', onDocClick)
 })
 
-// 导出下拉菜单：点空白处关闭。锚定到导出按钮容器，点容器内的项不触发关闭。
+// 工具栏更多菜单：把低频工具控制收进同一处；导出格式作为二级菜单。
+const moreMenuOpen = ref(false)
+const moreMenuEl = ref<HTMLElement>()
+const moreMenuButtonEl = ref<HTMLButtonElement>()
 const exportMenuOpen = ref(false)
-const exportMenuEl = ref<HTMLElement>()
-function toggleExportMenu(e: Event) {
+function closeMoreMenu(restoreFocus = false) {
+  moreMenuOpen.value = false
+  exportMenuOpen.value = false
+  if (restoreFocus) nextTick(() => moreMenuButtonEl.value?.focus())
+}
+function handleMoreMenuEscape() {
+  closeMoreMenu(true)
+}
+function onExportSubmenuFocusOut(e: FocusEvent) {
+  const wrap = e.currentTarget as HTMLElement | null
+  if (wrap && e.relatedTarget instanceof Node && wrap.contains(e.relatedTarget)) return
+  exportMenuOpen.value = false
+}
+function toggleMoreMenu(e: Event) {
   e.stopPropagation()
-  exportMenuOpen.value = !exportMenuOpen.value
+  moreMenuOpen.value = !moreMenuOpen.value
+  exportMenuOpen.value = false
   locateMenuOpen.value = false
 }
-// composer 的 `/model`/`/export` 等客户端指令：`/export` 展开右上角导出下拉（与点导出按钮等效）。
+// composer 的 `/export` 指令：打开更多菜单里的导出格式选项。
 function openExportFromComposer() {
+  moreMenuOpen.value = true
   exportMenuOpen.value = true
   locateMenuOpen.value = false
 }
@@ -2196,8 +2455,10 @@ function piBranchLabel(node: PiTreeNode): string {
 function toggleLocateMenu(e: Event) {
   e.stopPropagation()
   locateMenuOpen.value = !locateMenuOpen.value
+  moreMenuOpen.value = false
   exportMenuOpen.value = false
   if (locateMenuOpen.value) {
+    if (props.agent === 'pi' && props.piHasOlder) emit('loadPiAll')
     locateFilter.value = ''
     nextTick(() => locateInputEl.value?.focus())
   }
@@ -2219,10 +2480,8 @@ function escapeHtml(s: string): string {
 }
 
 function onDocClick(e: MouseEvent) {
-  if (exportMenuOpen.value) {
-    if (!(exportMenuEl.value && exportMenuEl.value.contains(e.target as Node))) {
-      exportMenuOpen.value = false
-    }
+  if (moreMenuOpen.value && !(moreMenuEl.value && moreMenuEl.value.contains(e.target as Node))) {
+    closeMoreMenu()
   }
   if (locateMenuOpen.value) {
     if (!(locateMenuEl.value && locateMenuEl.value.contains(e.target as Node))) {
@@ -2236,6 +2495,18 @@ function onDocClick(e: MouseEvent) {
   <div class="chat-head">
     <button class="icon-btn" v-tooltip="t('chat.back')" @click="$emit('back')">
       <IconArrowLeft />
+    </button>
+    <button
+      v-if="sessionNavigatorEnabled && !liveSession && !trashed"
+      type="button"
+      class="icon-btn"
+      :class="{ active: sessionNavigatorOpen }"
+      :aria-label="t(sessionNavigatorOpen ? 'chat.sessionNavigator.hide' : 'chat.sessionNavigator.show')"
+      :aria-expanded="!!sessionNavigatorOpen"
+      v-tooltip="t(sessionNavigatorOpen ? 'chat.sessionNavigator.hide' : 'chat.sessionNavigator.show')"
+      @click="$emit('toggleSessionNavigator')"
+    >
+      <IconList />
     </button>
     <div class="chat-head-info">
       <div class="t">
@@ -2287,6 +2558,7 @@ function onDocClick(e: MouseEvent) {
           <span class="pi-branch-picker-label">{{ t('chat.pi.branch') }}</span>
           <select
             :value="piLeafId || ''"
+            :disabled="piLoadingOlder"
             :aria-label="t('chat.pi.branch')"
             @change="$emit('piLeafChange', ($event.target as HTMLSelectElement).value)"
           >
@@ -2347,17 +2619,6 @@ function onDocClick(e: MouseEvent) {
       </div>
     </div>
     <button
-      class="icon-btn"
-      v-tooltip="
-        toolsCollapsed
-          ? t('chat.tb.tools.expand')
-          : t('chat.tb.tools.collapse')
-      "
-      @click="toggleTools"
-    >
-      <component :is="toolsCollapsed ? IconUnfold : IconFold" />
-    </button>
-    <button
       v-if="hiddenCount > 0"
       class="icon-btn"
       :class="{ active: showHidden }"
@@ -2366,15 +2627,6 @@ function onDocClick(e: MouseEvent) {
     >
       <component :is="showHidden ? IconEye : IconEyeOff" />
       <span class="hidden-badge">{{ hiddenCount }}</span>
-    </button>
-    <button
-      v-if="!liveSession"
-      class="icon-btn tool-calls-toggle"
-      :class="{ active: readToolCallsVisible, 'is-hidden': !readToolCallsVisible }"
-      v-tooltip="readToolCallsVisible ? t('chat.action.hideToolCalls') : t('chat.action.showToolCalls')"
-      @click="toggleReadToolCalls"
-    >
-      <IconWrench />
     </button>
     <span class="chat-head-sep" />
     <!-- 在窗口内 resume（TUI）：仅只读详情。live chat 里已在对话中，无需再开 TUI tab。 -->
@@ -2407,40 +2659,95 @@ function onDocClick(e: MouseEvent) {
       <IconRefresh />
     </button>
     <span v-if="!trashed" class="chat-head-sep" />
-    <div v-if="!trashed" ref="exportMenuEl" class="export-menu-wrap">
+    <div ref="moreMenuEl" class="export-menu-wrap chat-more-wrap">
       <button
         class="icon-btn"
-        :class="{ active: exportMenuOpen }"
-        v-tooltip:top="t('chat.tb.export.md') + ' / ' + t('chat.tb.export.html')"
-        @click="toggleExportMenu"
+        ref="moreMenuButtonEl"
+        :class="{ active: moreMenuOpen }"
+        :aria-label="t('chat.tb.moreActions')"
+        :aria-haspopup="'menu'"
+        :aria-expanded="moreMenuOpen"
+        v-tooltip:top="t('chat.tb.moreActions')"
+        @click="toggleMoreMenu"
       >
-        <IconDownload />
+        <IconMore />
       </button>
-      <div v-if="exportMenuOpen" class="export-menu" role="menu">
+      <div v-if="moreMenuOpen" class="export-menu chat-more-menu" role="menu" @keydown.esc.stop="handleMoreMenuEscape">
         <button
           class="export-menu-item"
           role="menuitem"
-          @click="exportMenuOpen = false; $emit('exportMd')"
+          :aria-label="toolsCollapsed ? t('chat.tb.tools.expand') : t('chat.tb.tools.collapse')"
+          @click="toggleTools"
         >
-          <IconMarkdown />
-          <span>{{ t('chat.tb.export.md') }}</span>
+          <component :is="toolsCollapsed ? IconUnfold : IconFold" />
+          <span>{{ toolsCollapsed ? t('chat.tb.tools.expand') : t('chat.tb.tools.collapse') }}</span>
         </button>
         <button
+          v-if="!liveSession"
           class="export-menu-item"
           role="menuitem"
-          @click="exportMenuOpen = false; $emit('exportHtml')"
+          :aria-label="readToolCallsVisible ? t('chat.action.hideToolCalls') : t('chat.action.showToolCalls')"
+          @click="toggleReadToolCalls"
         >
-          <IconHtml />
-          <span>{{ t('chat.tb.export.html') }}</span>
+          <IconWrench />
+          <span>{{ readToolCallsVisible ? t('chat.action.hideToolCalls') : t('chat.action.showToolCalls') }}</span>
         </button>
         <button
+          v-if="!liveSession"
           class="export-menu-item"
           role="menuitem"
-          @click="exportMenuOpen = false; $emit('exportJson')"
+          :aria-label="readThinkingVisible ? t('chat.action.hideThinking') : t('chat.action.showThinking')"
+          @click="toggleReadThinking"
         >
-          <IconJson />
-          <span>{{ t('chat.tb.export.json') }}</span>
+          <IconAtom />
+          <span>{{ readThinkingVisible ? t('chat.action.hideThinking') : t('chat.action.showThinking') }}</span>
         </button>
+        <div
+          v-if="!trashed"
+          class="chat-more-export-wrap"
+          @mouseenter="exportMenuOpen = true"
+          @mouseleave="exportMenuOpen = false"
+          @focusin="exportMenuOpen = true"
+          @focusout="onExportSubmenuFocusOut"
+        >
+          <button
+            class="export-menu-item chat-more-export-trigger"
+            role="menuitem"
+            aria-haspopup="menu"
+            :aria-expanded="exportMenuOpen"
+            @click="exportMenuOpen = true"
+          >
+            <IconDownload />
+            <span>{{ t('chat.tb.export') }}</span>
+            <IconChevronRight class="chat-more-chevron" />
+          </button>
+          <div v-if="exportMenuOpen" class="export-menu chat-more-export-menu" role="menu">
+            <button
+              class="export-menu-item"
+              role="menuitem"
+              @click="closeMoreMenu(); $emit('exportMd')"
+            >
+              <IconMarkdown />
+              <span>{{ t('chat.tb.export.md') }}</span>
+            </button>
+            <button
+              class="export-menu-item"
+              role="menuitem"
+              @click="closeMoreMenu(); $emit('exportHtml')"
+            >
+              <IconHtml />
+              <span>{{ t('chat.tb.export.html') }}</span>
+            </button>
+            <button
+              class="export-menu-item"
+              role="menuitem"
+              @click="closeMoreMenu(); $emit('exportJson')"
+            >
+              <IconJson />
+              <span>{{ t('chat.tb.export.json') }}</span>
+            </button>
+          </div>
+        </div>
       </div>
     </div>
     <!-- 删除：read 与 live chat 两种模式都有（chat 里删 = 软删并停掉当前会话）。 -->
@@ -2470,10 +2777,13 @@ function onDocClick(e: MouseEvent) {
     />
     <div class="chat-main">
       <div ref="scrollEl" class="chat-scroll" :class="{ 'has-composer': !!liveSession }">
+        <div v-if="piLoadingOlder" class="pi-history-loading">
+          <span class="pi-history-spinner" />
+          {{ t('common.loading') }}
+        </div>
         <div ref="innerEl" class="chat-inner">
-      <!-- 虚拟滚动列表：只有可见窗口 + overscan 的行真正挂 DOM。外层 .chat-vlist 撑满整段
-           虚拟总高（滚动条几何）；每个 .msg-vrow 绝对定位到自己的 translateY,并绑 measureRow
-           动态测高。内层用单元素 v-for 把当前行的消息重新命名回 `m`,行体保持原样。 -->
+      <!-- 虚拟滚动列表：只有可见窗口 + overscan 的展示行真正挂 DOM。普通展示行映射一条源消息，
+           reasoning group 映射一段连续源消息；滚动、搜索和消息操作仍用 source index。 -->
       <div
         ref="vlistEl"
         class="chat-vlist"
@@ -2483,14 +2793,64 @@ function onDocClick(e: MouseEvent) {
       >
       <div
         v-for="vr in renderedRows"
-        :key="vr.index"
+        :key="vr.displayIndex"
         :ref="shouldVirtualize ? measureRow : undefined"
-        :data-index="vr.index"
+        :data-index="vr.displayIndex"
         class="msg-vrow"
         :style="shouldVirtualize
           ? { position: 'absolute', top: 0, left: 0, width: '100%', transform: `translateY(${vr.start - listScrollMargin}px)` }
           : { width: '100%' }"
       >
+      <template v-for="displayRow in [displayRows[vr.displayIndex]]" :key="displayRow.key">
+      <div
+        v-if="displayRow.kind === 'thinking-group'"
+        v-show="!displayRow.hidden || showHidden"
+        class="msg-row assistant reasoning-group-row"
+        :class="[
+          { 'msg-flash': displayRow.sourceIndices.includes(flashIdx ?? -1), 'msg-hidden': displayRow.hidden && showHidden, 'row-active': hoveredKey === displayRow.key },
+        ]"
+        data-search-scope="assistant"
+        :data-msg-idx="displayRow.sourceIndex"
+        :data-msg-uuid="messages[displayRow.sourceIndex]?.uuid ?? ''"
+        @mouseenter="hoveredKey = displayRow.key"
+        @mouseleave="hoveredKey === displayRow.key && (hoveredKey = null)"
+      >
+        <details
+          class="thinking-block reasoning-group"
+          :open="isDetailOpen(displayRow.key, -1)"
+          @toggle="onDetailToggle(displayRow.key, -1, $event)"
+        >
+          <summary class="thinking-summary">
+            <IconAtom class="thinking-icon" aria-hidden="true" />
+            <span class="thinking-label">{{ t('tool.thinkingSteps', { n: displayRow.steps.length }) }}</span>
+            <span class="thinking-chev"><IconChevronRight /></span>
+          </summary>
+          <div class="reasoning-group-body">
+            <div
+              v-for="(step, stepIndex) in displayRow.steps"
+              :key="`${step.messageIndex}:${step.blockIndex}`"
+              class="reasoning-group-step"
+              data-search-scope="assistant"
+            >
+              <div class="reasoning-group-step-label">{{ t('tool.thinkingStep', { n: stepIndex + 1 }) }}</div>
+              <div class="thinking-content" v-rich-html="renderText(step.block.text ?? '')" />
+            </div>
+          </div>
+        </details>
+        <div class="msg-actions">
+          <button
+            v-if="!liveSession"
+            class="msg-action-btn"
+            type="button"
+            :aria-label="t(displayRow.hidden ? 'chat.action.unhideThinkingGroup' : 'chat.action.hideThinkingGroup')"
+            v-tooltip="t(displayRow.hidden ? 'chat.action.unhideThinkingGroup' : 'chat.action.hideThinkingGroup')"
+            @click="toggleHideThinkingGroup(displayRow)"
+          >
+            <component :is="displayRow.hidden ? IconEye : IconEyeOff" />
+          </button>
+        </div>
+      </div>
+      <template v-else>
       <template v-for="m in [messages[vr.index]]" :key="vr.index">
       <div
         v-show="rowHasContent(m) && (!isHidden(m, vr.index) || showHidden)"
@@ -2648,7 +3008,31 @@ function onDocClick(e: MouseEvent) {
           </div>
 
           <CollapsibleBox :enabled="effectiveRole(m) === 'user'" :max-height="320">
-            <template v-for="(b, bi) in m.blocks" :key="bi">
+            <template v-for="({ block: b, blockIndex: bi, steps, kind }, entryIndex) in displayBlocks(m, vr.index)" :key="`${bi}:${entryIndex}`">
+              <details
+                v-if="kind === 'thinking-group'"
+                class="thinking-block reasoning-group"
+                :open="isDetailOpen(m.uuid ?? vr.index, bi, 'thinking-group')"
+                @toggle="onDetailToggle(m.uuid ?? vr.index, bi, $event, 'thinking-group')"
+              >
+                <summary class="thinking-summary">
+                  <IconAtom class="thinking-icon" aria-hidden="true" />
+                  <span class="thinking-label">{{ t('tool.thinkingSteps', { n: steps?.length ?? 0 }) }}</span>
+                  <span class="thinking-chev"><IconChevronRight /></span>
+                </summary>
+                <div class="reasoning-group-body">
+                  <div
+                    v-for="(step, stepIndex) in steps"
+                    :key="step.blockIndex"
+                    class="reasoning-group-step"
+                    data-search-scope="assistant"
+                  >
+                    <div class="reasoning-group-step-label">{{ t('tool.thinkingStep', { n: stepIndex + 1 }) }}</div>
+                    <div class="thinking-content" v-rich-html="renderText(step.block.text ?? '')" />
+                  </div>
+                </div>
+              </details>
+              <template v-else>
               <div v-if="b.kind === 'text'" class="text-run" v-rich-html="renderBubble(m, b.text ?? '')" />
               <div v-else-if="isCodexPluginFileBlock(b)" class="text-run" v-rich-html="codexPluginFileHtml(b)" />
 
@@ -2769,6 +3153,7 @@ function onDocClick(e: MouseEvent) {
                 :persist-open="isDetailOpen(vr.index, bi, 'r')"
                 @toggle="v => onResultToggle(vr.index, bi, v)"
               />
+              </template>
             </template>
           </CollapsibleBox>
           </div>
@@ -2832,6 +3217,8 @@ function onDocClick(e: MouseEvent) {
           </div>
         </template>
       </div>
+      </template>
+      </template>
       </template>
       </div>
       </div>

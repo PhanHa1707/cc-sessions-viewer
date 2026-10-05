@@ -44,6 +44,11 @@ export interface ViewTab {
   /** Pi read-only branch state; omitted for other agents. */
   piTree: PiTreeNode[] | null
   piLeafId: string | null
+  piHasOlder: boolean
+  piOlderCursor: string | null
+  piLoadingOlder: boolean
+  piMessageCount: number
+  piStats: { user: number; assistant: number } | null
   // chat tab
   chatSession: ChatSession | null
   /** 最近一次已查看的 GUI chat turn；用于只在后台完成后显示一次 done 状态。 */
@@ -108,6 +113,11 @@ export function createViewTab(partial: Partial<ViewTab> & Pick<ViewTab, 'type' |
     lastShownAt: 0,
     piTree: null,
     piLeafId: null,
+    piHasOlder: false,
+    piOlderCursor: null,
+    piLoadingOlder: false,
+    piMessageCount: 0,
+    piStats: null,
     chatSession: null,
     lastViewedChatTurnStartedAt: 0,
     lastViewedChatErrorKey: null,

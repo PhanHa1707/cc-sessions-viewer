@@ -42,6 +42,8 @@ import {
   setUseReclaude,
   showToolCalls,
   setShowToolCalls,
+  showThinking,
+  setShowThinking,
   exportShowMessageTime,
   setExportShowMessageTime,
   showChatRail,
@@ -1166,6 +1168,15 @@ async function refreshTurnHooks() {
                 <p class="set-row-desc">{{ t('settings.showToolCallsDesc') }}</p>
               </div>
               <span class="set-toggle-track set-row-control" :class="{ on: showToolCalls }">
+                <span class="set-toggle-thumb" />
+              </span>
+            </label>
+            <label class="set-row set-row-clickable" @click.prevent="setShowThinking(!showThinking)">
+              <div class="set-row-text">
+                <div class="set-row-title">{{ t('settings.showThinking') }}</div>
+                <p class="set-row-desc">{{ t('settings.showThinkingDesc') }}</p>
+              </div>
+              <span class="set-toggle-track set-row-control" :class="{ on: showThinking }">
                 <span class="set-toggle-thumb" />
               </span>
             </label>
