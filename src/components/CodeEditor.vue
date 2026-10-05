@@ -155,7 +155,18 @@ watch(html, () => void nextTick(onScroll))
 
 const empty = computed(() => props.modelValue.length === 0)
 
-defineExpose({ focus: () => taEl.value?.focus() })
+defineExpose({
+  focus: () => taEl.value?.focus(),
+  revealLine: (line: number) => {
+    const ta = taEl.value
+    if (!ta) return
+    ta.scrollTop = Math.max(0, (line - 1) * 21)
+    const offset = ta.value.split('\n').slice(0, Math.max(0, line - 1)).join('\n').length + (line > 1 ? 1 : 0)
+    ta.focus()
+    ta.setSelectionRange(offset, offset)
+    onScroll()
+  },
+})
 </script>
 
 <template>

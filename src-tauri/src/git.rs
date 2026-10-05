@@ -232,6 +232,75 @@ fn parse_numstat_output(text: &str) -> Vec<GitDiffFile> {
         .collect()
 }
 
+fn parse_worktree_list_output(text: &str) -> Vec<crate::types::GitWorktree> {
+    let mut records: Vec<Vec<&str>> = Vec::new();
+    let mut current = Vec::new();
+    for field in text.split('\0') {
+        if field.is_empty() {
+            if !current.is_empty() {
+                records.push(std::mem::take(&mut current));
+            }
+        } else {
+            current.push(field);
+        }
+    }
+    if !current.is_empty() {
+        records.push(current);
+    }
+
+    let mut worktrees: Vec<_> = records
+        .into_iter()
+        .filter_map(|fields| {
+            let path = fields
+                .iter()
+                .find_map(|field| field.strip_prefix("worktree "))?
+                .to_string();
+            let head = fields
+                .iter()
+                .find_map(|field| field.strip_prefix("HEAD "))
+                .map(str::to_string);
+            let branch = fields
+                .iter()
+                .find_map(|field| field.strip_prefix("branch refs/heads/"))
+                .map(str::to_string);
+            let bare = fields.contains(&"bare");
+            let name = std::path::Path::new(&path)
+                .file_name()
+                .map(|value| value.to_string_lossy().into_owned())
+                .filter(|value| !value.is_empty())
+                .unwrap_or_else(|| path.clone());
+            Some(crate::types::GitWorktree {
+                path,
+                name,
+                branch,
+                head,
+                is_main: false,
+                detached: fields.contains(&"detached"),
+                locked: fields.iter().any(|field| field.starts_with("locked")),
+                prunable: fields.iter().any(|field| field.starts_with("prunable")),
+                bare,
+            })
+        })
+        .collect();
+
+    if let Some(primary) = worktrees.iter_mut().find(|worktree| !worktree.bare) {
+        primary.is_main = true;
+    }
+    worktrees
+}
+
+/// Lists linked worktrees registered with the same Git repository as `cwd`.
+pub fn git_worktrees(cwd: &str) -> Result<Vec<crate::types::GitWorktree>, String> {
+    let root = repo_root(cwd)?;
+    let output = run_git(&root, &["worktree", "list", "--porcelain", "-z"])?;
+    Ok(parse_worktree_list_output(&output)
+        .into_iter()
+        .filter(|worktree| {
+            !worktree.bare && !worktree.prunable && std::path::Path::new(&worktree.path).is_dir()
+        })
+        .collect())
+}
+
 pub fn git_diff_files(cwd: &str, git_ref: &str) -> Result<Vec<GitDiffFile>, String> {
     let root = repo_root(cwd)?;
     let mut files = if git_ref == "working" {
@@ -302,6 +371,75 @@ pub fn git_diff_file(cwd: &str, git_ref: &str, path: &str) -> Result<Vec<DiffHun
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn parses_registered_worktrees_and_marks_the_primary_tree() {
+        let output = concat!(
+            "worktree /repo\0",
+            "HEAD 0123456789012345678901234567890123456789\0",
+            "branch refs/heads/main\0\0",
+            "worktree /repo/.claude/worktrees/feature\0",
+            "HEAD abcdef0123456789abcdef0123456789abcdef01\0",
+            "branch refs/heads/feature/diff\0\0",
+            "worktree /repo/detached\0",
+            "HEAD fedcba9876543210fedcba9876543210fedcba98\0",
+            "detached\0\0",
+        );
+        let worktrees = parse_worktree_list_output(output);
+        assert_eq!(worktrees.len(), 3);
+        assert!(worktrees[0].is_main);
+        assert_eq!(worktrees[0].branch.as_deref(), Some("main"));
+        assert_eq!(worktrees[1].name, "feature");
+        assert_eq!(worktrees[1].branch.as_deref(), Some("feature/diff"));
+        assert!(!worktrees[1].is_main);
+        assert!(worktrees[2].detached);
+        assert_eq!(worktrees[2].branch, None);
+    }
+
+    #[test]
+    fn git_worktrees_lists_linked_trees_for_the_same_repository() {
+        let dir = std::env::temp_dir().join(format!("cssv_git_worktrees_{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let cwd = dir.to_str().unwrap();
+
+        run_git(cwd, &["init"]).unwrap();
+        run_git(cwd, &["config", "user.email", "test@example.com"]).unwrap();
+        run_git(cwd, &["config", "user.name", "Test User"]).unwrap();
+        std::fs::write(dir.join("README.md"), "initial\n").unwrap();
+        run_git(cwd, &["add", "README.md"]).unwrap();
+        run_git(cwd, &["commit", "-m", "initial"]).unwrap();
+
+        let target = dir.join(".claude/worktrees/feature");
+        std::fs::create_dir_all(target.parent().unwrap()).unwrap();
+        run_git(
+            cwd,
+            &[
+                "worktree",
+                "add",
+                target.to_str().unwrap(),
+                "-b",
+                "feature/diff",
+            ],
+        )
+        .unwrap();
+
+        let worktrees = git_worktrees(cwd).unwrap();
+        assert_eq!(worktrees.len(), 2);
+        assert!(worktrees[0].is_main);
+        assert_eq!(
+            worktrees[0].path,
+            std::fs::canonicalize(&dir).unwrap().to_string_lossy()
+        );
+        let linked = worktrees.iter().find(|worktree| !worktree.is_main).unwrap();
+        assert_eq!(linked.branch.as_deref(), Some("feature/diff"));
+        assert_eq!(
+            linked.path,
+            std::fs::canonicalize(&target).unwrap().to_string_lossy()
+        );
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
 
     #[test]
     fn valid_hash_accepts_short_and_full_sha() {

@@ -86,6 +86,18 @@ export interface GitFileStatus {
   status: string
 }
 
+export interface GitWorktree {
+  path: string
+  name: string
+  branch: string | null
+  head: string | null
+  isMain: boolean
+  detached: boolean
+  locked: boolean
+  prunable: boolean
+  bare: boolean
+}
+
 export interface GitRepositoryState {
   branch: string | null
   branches: string[]
@@ -360,6 +372,29 @@ export interface ProjectFileEntry {
   isDir: boolean
   /** 仅目录有意义：是否含可见子项。空目录 = false → 不显示「进入」chevron、禁用下钻。 */
   hasChildren: boolean
+}
+
+export interface ProjectEditorEntry {
+  path: string
+  bytes: number
+  isDir: boolean
+}
+
+export interface ProjectEditorFileList {
+  files: ProjectEditorEntry[]
+  truncated: boolean
+}
+
+export interface ProjectSearchMatch {
+  path: string
+  lineNumber: number
+  line: string
+}
+
+export interface ProjectSearchResults {
+  matches: ProjectSearchMatch[]
+  filesSearched: number
+  truncated: boolean
 }
 
 /** GUI chat `/` 浮层的一条可用项（命令 / 技能，与 Rust SlashCommand 同形）。 */

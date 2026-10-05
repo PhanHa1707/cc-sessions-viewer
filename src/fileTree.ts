@@ -20,11 +20,14 @@ export function treeDepth(path: string): number {
 }
 
 /**
- * 把扁平的路径列表摊成树，并把单链目录压成一行。
+ * 把扁平路径列表摊成树。默认把单链目录压成一行；Explorer 风格场景可关闭压缩，逐级展示目录。
  *
  * 次序跟着输入走 —— 后端已经排过序，这里再排一次会和别处的显示对不上。
  */
-export function buildFileTree<T extends { path: string }>(list: T[]): TreeNode<T>[] {
+export function buildFileTree<T extends { path: string }>(
+  list: T[],
+  options: { collapseSingleDirectories?: boolean } = {},
+): TreeNode<T>[] {
   const root: TreeNode<T>[] = []
   for (const item of list) {
     const parts = item.path.split('/')
@@ -43,7 +46,7 @@ export function buildFileTree<T extends { path: string }>(list: T[]): TreeNode<T
       nodes = node.children
     }
   }
-  return collapseSingleDirs(root)
+  return options.collapseSingleDirectories === false ? root : collapseSingleDirs(root)
 }
 
 /**

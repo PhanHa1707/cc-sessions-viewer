@@ -51,6 +51,7 @@ import IconSaveRaw from '~icons/lucide/save'
 import IconMarkdownRaw from '~icons/lucide/file-text'
 import IconFileRaw from '~icons/lucide/file'
 import IconFilePlusRaw from '~icons/lucide/file-plus-2'
+import IconFolderPlusRaw from '~icons/lucide/folder-plus'
 import IconFileDiffRaw from '~icons/lucide/file-diff'
 import IconHtmlRaw from '~icons/lucide/file-code'
 import IconJsonRaw from '~icons/lucide/braces'
@@ -152,6 +153,7 @@ export const IconUpload = IconUploadRaw
 export const IconMarkdown = IconMarkdownRaw
 export const IconFile = IconFileRaw
 export const IconFilePlus = IconFilePlusRaw
+export const IconFolderPlus = IconFolderPlusRaw
 export const IconFileDiff = IconFileDiffRaw
 export const IconHtml = IconHtmlRaw
 export const IconJson = IconJsonRaw

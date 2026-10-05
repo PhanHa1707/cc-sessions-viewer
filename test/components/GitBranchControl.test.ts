@@ -64,6 +64,24 @@ describe('GitBranchControl', () => {
     wrapper.unmount()
   })
 
+  it('routes project-workspace changes into its own view without opening a pane tab', async () => {
+    gitRepositoryStateMock.mockResolvedValue(state('main', 3))
+    const cwd = '/branch-control-project-workspace'
+    const wrapper = mount(GitBranchControl, {
+      props: { cwd, openChangesInWorkspace: true },
+      global: {
+        directives: { tooltip: vTooltip },
+        provide: { [PaneActionsKey as symbol]: { openGitChanges: openGitChangesMock } },
+      },
+    })
+    await flushPromises()
+    await wrapper.get('.git-branch-change-count').trigger('click')
+
+    expect(wrapper.emitted('open-changes')).toEqual([[cwd]])
+    expect(openGitChangesMock).not.toHaveBeenCalled()
+    wrapper.unmount()
+  })
+
   it('switches a clean worktree and updates the rendered branch', async () => {
     gitRepositoryStateMock.mockResolvedValue(state('main'))
     gitSwitchBranchMock.mockResolvedValue(state('develop'))

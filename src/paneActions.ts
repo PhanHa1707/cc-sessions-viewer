@@ -79,6 +79,8 @@ export interface PaneActions {
   splitV: () => void
   /** 打开仓库的工作区变更；传 cwd 时优先查看会话所属仓库。 */
   openGitChanges: (cwd?: string) => void
+  /** 打开指定项目的全屏文件编辑器。 */
+  openProjectEditor: (cwd: string) => void
   loadMore: () => void
   batchDeleteSessions: () => void
   batchExportSessions: (kind: ExportKind) => void

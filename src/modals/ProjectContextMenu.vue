@@ -8,6 +8,7 @@ import {
   IconTrashOpen,
   IconFolder,
   IconGitBranch,
+  IconScopeProject,
 } from '../components/icons'
 
 type ProjState = 'pinned' | 'sunk'
@@ -25,6 +26,7 @@ const emit = defineEmits<{
   (e: 'toggle-state', state: ProjState): void
   (e: 'refresh'): void
   (e: 'open-folder'): void
+  (e: 'open-editor'): void
   (e: 'delete'): void
   (e: 'remove-bookmark'): void
   (e: 'create-worktree'): void
@@ -53,6 +55,10 @@ const isWorktree = () => !!props.project.worktreeName
         <button class="ctx-item" @click="emit('open-folder')">
           <IconFolder />
           {{ t('proj.openFolder') }}
+        </button>
+        <button class="ctx-item" @click="emit('open-editor')">
+          <IconScopeProject />
+          {{ t('projectEditor.open') }}
         </button>
         <button class="ctx-item" @click="emit('refresh')">
           <IconRefresh />

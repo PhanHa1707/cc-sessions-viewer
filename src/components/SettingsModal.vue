@@ -174,6 +174,7 @@ const shortcutGroups = [
       { key: k([mod, shift, 'S']), label: 'settings.shortcut.stats' },
       { key: k([mod, shift, 'T']), label: 'settings.shortcut.trash' },
       { key: k([mod, 'K']), label: 'settings.shortcut.tools' },
+      { key: k([mod, shift, 'E']), label: 'settings.shortcut.projectEditor' },
       { key: k([mod, ',']), label: 'settings.shortcut.settings' },
       { key: k([mod, '/']), label: 'settings.shortcut.shortcuts' },
       { key: 'Esc', label: 'settings.shortcut.escape' },

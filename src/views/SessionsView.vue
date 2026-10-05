@@ -40,6 +40,7 @@ import {
   IconChat,
   IconGitBranch,
   IconExternalLink,
+  IconScopeProject,
 } from '../components/icons'
 import CreationSortIcon from '../components/CreationSortIcon.vue'
 import NewMenu from '../components/NewMenu.vue'
@@ -764,6 +765,15 @@ onUnmounted(() => document.removeEventListener('click', onNewMenuDocClick))
           @click="sessionSelectMode = true"
         >
           <IconSelect />
+        </button>
+        <button
+          v-if="project.exists"
+          class="icon-btn"
+          v-tooltip="t('projectEditor.open')"
+          :aria-label="t('projectEditor.open')"
+          @click="pa.openProjectEditor(project.displayPath)"
+        >
+          <IconScopeProject />
         </button>
         <div v-if="project.exists" ref="newMenuEl" class="new-menu-wrap">
           <button

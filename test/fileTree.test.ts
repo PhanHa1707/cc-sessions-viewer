@@ -30,6 +30,14 @@ describe('buildFileTree', () => {
     expect(names(tree[0].children)).toEqual(['x.md'])
   })
 
+  it('可按需保留每一级目录，方便 Git 改动树显示完整路径', () => {
+    const tree = buildFileTree([f('a/b/c/x.md')], { collapseSingleDirectories: false })
+    expect(names(tree)).toEqual(['a'])
+    expect(names(tree[0].children)).toEqual(['b'])
+    expect(names(tree[0].children[0].children)).toEqual(['c'])
+    expect(names(tree[0].children[0].children[0].children)).toEqual(['x.md'])
+  })
+
   it('目录下既有文件又有子目录时不压', () => {
     const tree = buildFileTree([f('a/x.md'), f('a/b/y.md')])
     expect(names(tree)).toEqual(['a'])

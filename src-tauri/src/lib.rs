@@ -2294,6 +2294,11 @@ fn git_has_repo(cwd: String) -> bool {
 }
 
 #[tauri::command(async)]
+fn git_worktrees(cwd: String) -> Result<Vec<crate::types::GitWorktree>, String> {
+    git::git_worktrees(&cwd)
+}
+
+#[tauri::command(async)]
 fn git_log(cwd: String, limit: Option<u32>) -> Result<Vec<crate::types::GitCommit>, String> {
     git::git_log(&cwd, limit)
 }
@@ -2701,6 +2706,12 @@ pub fn run() {
             tools::files::tools_list_skill_files,
             tools::files::tools_read_skill_file,
             tools::files::tools_write_skill_file,
+            tools::project_files::project_list_files,
+            tools::project_files::project_read_file,
+            tools::project_files::project_write_file,
+            tools::project_files::project_create_file,
+            tools::project_files::project_delete_path,
+            tools::project_files::project_search_files,
             list_sessions,
             read_session,
             read_pi_session_page,
@@ -2784,6 +2795,7 @@ pub fn run() {
             git_delete_branch,
             git_create_branch,
             git_has_repo,
+            git_worktrees,
             git_log,
             git_status,
             git_diff_files,

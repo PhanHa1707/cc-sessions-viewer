@@ -23,6 +23,7 @@ pub mod registry_git;
 pub mod bundle;
 pub mod memo;
 pub mod memo_merge;
+pub mod project_files;
 pub mod risk;
 pub mod skills;
 pub mod skills_git;

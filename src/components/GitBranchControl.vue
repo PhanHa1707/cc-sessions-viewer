@@ -11,10 +11,14 @@ const props = withDefaults(defineProps<{
   cwd?: string
   disabled?: boolean
   menuPlacement?: 'above' | 'below'
+  /** Route the changes badge to the containing workspace instead of opening a pane tab. */
+  openChangesInWorkspace?: boolean
 }>(), {
   disabled: false,
   menuPlacement: 'below',
+  openChangesInWorkspace: false,
 })
+const emit = defineEmits<{ 'open-changes': [cwd: string] }>()
 
 const paneActions = inject(PaneActionsKey, null)
 
@@ -51,7 +55,9 @@ function toggleMenu() {
 }
 
 function openWorkingChanges() {
-  if (props.cwd) paneActions?.openGitChanges(props.cwd)
+  if (!props.cwd) return
+  if (props.openChangesInWorkspace) emit('open-changes', props.cwd)
+  else paneActions?.openGitChanges(props.cwd)
 }
 
 async function refreshRepository() {

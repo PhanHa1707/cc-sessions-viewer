@@ -273,6 +273,20 @@ pub struct GitRepositoryState {
 
 #[derive(Serialize, Clone)]
 #[serde(rename_all = "camelCase")]
+pub struct GitWorktree {
+    pub path: String,
+    pub name: String,
+    pub branch: Option<String>,
+    pub head: Option<String>,
+    pub is_main: bool,
+    pub detached: bool,
+    pub locked: bool,
+    pub prunable: bool,
+    pub bare: bool,
+}
+
+#[derive(Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
 pub struct GitDiffFile {
     pub path: String,
     pub additions: u32,

@@ -4,6 +4,7 @@ import type { Agent, ProjectInfo, SessionMeta, TrashItem, Msg, UsageSummary } fr
 import { agentLabel, agentSupports } from './agentMeta'
 import * as api from './api'
 import { shortName } from './format'
+import { isProjectEditorShortcut } from './projectEditor'
 import { t } from './i18n'
 import { convertFileSrc } from '@tauri-apps/api/core'
 import {
@@ -70,7 +71,8 @@ import type { SearchHit } from './types'
 import ChatSidePanel from './components/ChatSidePanel.vue'
 import CodexSidePanel from './components/CodexSidePanel.vue'
 import SettingsModal from './components/SettingsModal.vue'
-import { IconArrowLeft, IconSearch } from './components/icons'
+import { IconArrowLeft, IconClose, IconSearch } from './components/icons'
+import ProjectFileEditor from './components/ProjectFileEditor.vue'
 import WindowsTitlebar, { type WindowMenuGroup } from './components/WindowsTitlebar.vue'
 import ChatTopbar from './components/topbar/ChatTopbar.vue'
 import TuiTopbar from './components/topbar/TuiTopbar.vue'
@@ -220,6 +222,9 @@ const showSettings = ref(false)
 // 工具管理：和统计 / 回收站同一档的主区视图，但**不清 activeDir / view tab** ——
 // 它只是盖在上面，关掉就回到原来的会话，一格分屏都不动。
 const showTools = ref(false)
+const showProjectEditor = ref(false)
+const projectEditorCwd = ref('')
+const projectFileEditorRef = ref<InstanceType<typeof ProjectFileEditor> | null>(null)
 // 关掉就把壳状态归零 —— 下次打开用户期望的是干净的面板，而不是上次留下的过滤条件。
 watch(showTools, (open) => {
   if (!open) resetToolsPanel()
@@ -670,6 +675,7 @@ const toolsCwd = computed(() =>
 )
 const activeAgentLabel = computed(() => agentLabel(agent.value))
 const topbarContextTitle = computed(() => {
+  if (showProjectEditor.value) return shortName(projectEditorCwd.value)
   if (showTools.value) return t('tools.title')
   if (showStats.value) return t('sidebar.stats')
   if (showTrash.value) return t('sidebar.trash')
@@ -678,6 +684,7 @@ const topbarContextTitle = computed(() => {
   return activeProject.value ? shortName(activeProject.value.displayPath) : activeAgentLabel.value
 })
 const topbarContextMeta = computed(() => {
+  if (showProjectEditor.value) return t('projectEditor.open')
   // 工具管理是跨 agent 的，用当前 agent 当副标题会误导 —— 这里给当前面板名。
   if (showTools.value) return t(TAB_LABEL[toolsTab.value])
   if (showStats.value || showTrash.value || showExportHistory.value || showPricing.value) {
@@ -797,6 +804,17 @@ function ctxOpenProjectFolder() {
   closeCtxMenu()
   if (!p) return
   api.revealInFinder(p.displayPath).catch((e) => notify(`${e}`, true))
+}
+function openProjectEditor(cwd: string) {
+  projectEditorCwd.value = cwd
+  showTools.value = false
+  showProjectEditor.value = true
+}
+function ctxOpenProjectEditor() {
+  const p = ctxMenu.value?.project
+  closeCtxMenu()
+  if (!p || !p.exists) return
+  openProjectEditor(p.displayPath)
 }
 function ctxDeleteProject() {
   const p = ctxMenu.value?.project
@@ -4351,8 +4369,13 @@ onMounted(() => {
         if (dir) { e.preventDefault(); focusPaneDir(dir) }
         return
       }
-      if (!mod || otherMod || e.altKey) return
       if (e.repeat) return
+      if (isProjectEditorShortcut(e, _isMac)) {
+        e.preventDefault()
+        if (activeProject.value?.exists) openProjectEditor(activeProject.value.displayPath)
+        return
+      }
+      if (!mod || otherMod || e.altKey) return
 
       const key = e.key.toLowerCase()
       if (key === 'w' && !e.shiftKey) {
@@ -4377,7 +4400,9 @@ onMounted(() => {
       } else if (key === 'g' && e.shiftKey) {
         e.preventDefault(); chatNavigate(-1)
       } else if (key === 'b' && e.shiftKey) {
-        e.preventDefault(); openGitChangesTab()
+        e.preventDefault()
+        if (showProjectEditor.value) projectFileEditorRef.value?.openSourceControl()
+        else openGitChangesTab()
       } else if (key === 'n' && !e.shiftKey) {
         e.preventDefault(); newDefaultAction()
       } else if (key === 'o' && !e.shiftKey) {
@@ -4818,6 +4843,7 @@ provide<PaneActions>(PaneActionsKey, {
   splitH: () => splitFocusedPane('row'),
   splitV: () => splitFocusedPane('col'),
   openGitChanges: openGitChangesTab,
+  openProjectEditor,
   loadMore,
   batchDeleteSessions,
   batchExportSessions,
@@ -4877,11 +4903,11 @@ provide<PaneActions>(PaneActionsKey, {
           <!-- 工具管理占着整个主区，标题前面给一个返回按钮（和最右的 × 同一个动作）——
                agent 首字母标记这时不显示：面板是跨 agent 的，挂个「C」只会误导。 -->
           <button
-            v-if="showTools"
+            v-if="showTools || showProjectEditor"
             class="topbar-back-btn"
-            v-tooltip="t('tools.back')"
-            :aria-label="t('tools.back')"
-            @click="showTools = false"
+            v-tooltip="showTools ? t('tools.back') : t('projectEditor.back')"
+            :aria-label="showTools ? t('tools.back') : t('projectEditor.back')"
+            @click="showTools ? (showTools = false) : projectFileEditorRef?.requestClose()"
           >
             <IconArrowLeft />
           </button>
@@ -4901,6 +4927,15 @@ provide<PaneActions>(PaneActionsKey, {
           :sidebar-cwd="activeProject?.displayPath"
           @close="showTools = false"
         />
+        <button
+          v-else-if="showProjectEditor"
+          class="topbar-back-btn project-editor-close"
+          v-tooltip="t('common.close')"
+          :aria-label="t('common.close')"
+          @click="projectFileEditorRef?.requestClose()"
+        >
+          <IconClose />
+        </button>
         <!-- StatsView 自带顶部控制条，这里就让出空间（保持拖动区域）。
              showStats 优先级要高于 openSession，否则进入会话统计模式时
              还会渲染 ChatTopbar 的「会话统计」按钮，造成视觉重复。 -->
@@ -4939,7 +4974,7 @@ provide<PaneActions>(PaneActionsKey, {
       @close="showTools = false"
     />
     <Sidebar
-      v-show="sidebarOpen && !showTools"
+      v-show="sidebarOpen && !showTools && !showProjectEditor"
       :agent="agent"
       :projects="projects"
       :active-dir="activeDir"
@@ -4986,7 +5021,7 @@ provide<PaneActions>(PaneActionsKey, {
       <div
         v-if="showStats || showTrash || showExportHistory || showPricing"
         class="view-layer global-view-layer"
-        :class="{ 'is-covered': showTools }"
+        :class="{ 'is-covered': showTools || showProjectEditor }"
       >
         <StatsView
           v-if="showStats"
@@ -5015,7 +5050,7 @@ provide<PaneActions>(PaneActionsKey, {
 
       <!-- 分屏格子：递归 PaneGrid 渲染整棵分屏树。每格 strip + 会话/列表/欢迎 + TUI 层由
            PaneContent 按各自 pane 解出。multi class 只在多格子时给聚焦格子加聚焦描边。 -->
-      <div v-else class="pane-grid" :class="{ multi: paneCount > 1, 'is-covered': showTools }">
+      <div v-else class="pane-grid" :class="{ multi: paneCount > 1, 'is-covered': showTools || showProjectEditor }">
         <PaneGrid
           :node="currentLayout.tree"
           :active-project="activeProject"
@@ -5030,6 +5065,15 @@ provide<PaneActions>(PaneActionsKey, {
         />
       </div>
     </main>
+    <div v-if="showProjectEditor" class="project-file-layer">
+      <ProjectFileEditor
+        ref="projectFileEditorRef"
+        :show="showProjectEditor"
+        :project-path="projectEditorCwd"
+        :project-name="shortName(projectEditorCwd)"
+        @close="showProjectEditor = false"
+      />
+    </div>
     </div>
 
     <!-- 确认弹窗 -->
@@ -5114,6 +5158,7 @@ provide<PaneActions>(PaneActionsKey, {
       :is-git-repo="ctxMenu.isGitRepo"
       @toggle-state="ctxToggleState"
       @open-folder="ctxOpenProjectFolder"
+      @open-editor="ctxOpenProjectEditor"
       @refresh="ctxRefresh"
       @delete="ctxDeleteProject"
       @remove-bookmark="ctxRemoveBookmark"

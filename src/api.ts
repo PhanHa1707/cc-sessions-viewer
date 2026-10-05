@@ -13,6 +13,8 @@ import type {
   ReclaudeInfo,
   SlashCommand,
   ProjectFileEntry,
+  ProjectEditorFileList,
+  ProjectSearchResults,
   ProjectInfo,
   SessionPage,
   Msg,
@@ -31,6 +33,7 @@ import type {
   GitFileStatus,
   GitDiffFile,
   GitRepositoryState,
+  GitWorktree,
   McpScan,
   McpEdit,
   McpFileStamp,
@@ -618,6 +621,9 @@ export const gitCreateBranch = (cwd: string, branch: string) =>
 /** cwd 是否是一个 git 仓库；前端据此决定是否显示 Git Changes 入口。 */
 export const gitHasRepo = (cwd: string) => invoke<boolean>('git_has_repo', { cwd })
 
+/** Registered worktrees for the Git repository containing cwd. */
+export const gitWorktrees = (cwd: string) => invoke<GitWorktree[]>('git_worktrees', { cwd })
+
 /** commit 列表（hash / author / date / message），按最近优先。 */
 export const gitLog = (cwd: string, limit?: number) =>
   invoke<GitCommit[]>('git_log', { cwd, limit })
@@ -641,6 +647,35 @@ export const saveTempImage = (base64: string, mediaType: string) =>
  *  `query` 空 → 顶层直接子项；裸查询 → 全工作区模糊搜索；带 `/` → 目录逐级浏览。 */
 export const listProjectFiles = (cwd: string, query: string, limit = 200) =>
   invoke<ProjectFileEntry[]>('list_project_files', { cwd, query, limit })
+
+/** 列出项目目录中的可编辑文件（跳过依赖、构建产物和软链）。 */
+export const projectEditorListFiles = (cwd: string) =>
+  invoke<ProjectEditorFileList>('project_list_files', { cwd })
+
+export const projectEditorReadFile = (cwd: string, rel: string) =>
+  invoke<SkillFileText>('project_read_file', { cwd, rel })
+
+/** `rev` 必须是读取文件时的版本；磁盘内容变化时后端会拒绝覆盖。 */
+export const projectEditorWriteFile = (cwd: string, rel: string, text: string, rev: FileRev) =>
+  invoke<FileRev>('project_write_file', { cwd, rel, text, rev })
+
+export const projectEditorCreateFile = (cwd: string, rel: string, directory: boolean) =>
+  invoke<void>('project_create_file', { cwd, rel, directory })
+
+export const projectEditorDeletePath = (cwd: string, rel: string) =>
+  invoke<void>('project_delete_path', { cwd, rel })
+
+export const projectEditorSearchFiles = (
+  options: {
+    cwd: string
+    query: string
+    caseSensitive: boolean
+    wholeWord: boolean
+    regex: boolean
+    include: string
+    exclude: string
+  },
+) => invoke<ProjectSearchResults>('project_search_files', { options })
 
 /** 结束一个 chat 子进程（kill + 回收）。幂等。 */
 export const agentChatStop = (id: number) => invoke<void>('agent_chat_stop', { id })
