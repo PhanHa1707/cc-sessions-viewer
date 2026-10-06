@@ -29,7 +29,7 @@ Shortcuts use `⌘` on macOS and `Ctrl` on Windows and Linux.
 
 | Shortcut | Action |
 | --- | --- |
-| `⌘⇧F` | Global search across every project |
+| `⌘⇧F` | Global search across every project (search the project editor when it is open) |
 | `⌘F` | Search inside the current view |
 | `⌘G` | Next match |
 | `⌘⇧G` | Previous match |
@@ -52,5 +52,9 @@ Shortcuts use `⌘` on macOS and `Ctrl` on Windows and Linux.
 | --- | --- |
 | `⌘O` | Bookmark the current folder |
 | `⌘E` | Export the open session as Markdown |
+| `⌘⇧E` / `Ctrl+Shift+E` | Open the selected project's file editor |
+| `⌘P` / `Ctrl+P` | Quick open a file (only while the project editor is open) |
+
+Inside the project editor, `⌘⇧B` / `Ctrl+Shift+B` opens that workspace's Source Control view instead of changing an underlying pane's Git tab.
 
 Inside the embedded terminal, the terminal tab handles `⌘W`, `⌘T`, `⌘R` and `⌘F` itself and does not pass them through to the shell.

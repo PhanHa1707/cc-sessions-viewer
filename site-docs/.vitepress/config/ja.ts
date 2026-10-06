@@ -29,7 +29,9 @@ export const ja: Locale = {
         items: [
           { text: '読む・検索する', link: '/ja/features/read-and-search' },
           { text: '再開と継続', link: '/ja/features/resume' },
+          { text: 'プロジェクトファイルエディター', link: '/ja/features/project-editor' },
           { text: 'ペイン・タブ・git diff', link: '/ja/features/panes' },
+
           { text: 'トークンとコスト', link: '/ja/features/stats' },
           { text: 'エクスポートとゴミ箱', link: '/ja/features/export-and-trash' },
           { text: 'ショートカット', link: '/ja/features/shortcuts' },

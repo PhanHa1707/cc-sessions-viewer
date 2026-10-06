@@ -29,7 +29,9 @@ export const en: Locale = {
         items: [
           { text: 'Reading and searching', link: '/features/read-and-search' },
           { text: 'Resuming sessions', link: '/features/resume' },
+          { text: 'Project file editor', link: '/features/project-editor' },
           { text: 'Panes, tabs and git diff', link: '/features/panes' },
+
           { text: 'Token and cost stats', link: '/features/stats' },
           { text: 'Export and trash', link: '/features/export-and-trash' },
           { text: 'Keyboard shortcuts', link: '/features/shortcuts' },

@@ -99,7 +99,9 @@ const PAGE_KEYWORDS: Record<string, string[]> = {
   'guide/install.md': ['sessions viewer download', 'macos gatekeeper unsigned app', 'tauri app install'],
   'features/read-and-search.md': ['read claude code transcript', 'search agent sessions', 'jsonl transcript viewer'],
   'features/resume.md': ['claude --resume', 'codex resume', 'resume coding agent session', 'cmux iterm ghostty warp'],
+  'features/project-editor.md': ['project file editor', 'edit project files', 'markdown preview', 'git worktree diff'],
   'features/panes.md': ['split panes', 'git diff beside session', 'session tabs'],
+
   'features/stats.md': ['claude code token usage', 'codex cost tracking', 'models.dev pricing', 'ai coding cost'],
   'features/export-and-trash.md': ['export claude code session', 'session to markdown html json', 'session trash restore'],
   'features/shortcuts.md': ['sessions viewer shortcuts', 'keyboard shortcuts'],

@@ -24,7 +24,12 @@ import * as api from '../api'
 import { t } from '../i18n'
 import { formatSize, renderText } from '../format'
 import { langOfPath } from '../shikiHighlight'
-import { highlightSearchLine, isMarkdownFile } from '../projectEditor'
+import {
+  highlightSearchLine,
+  isMarkdownFile,
+  isProjectFileQuickOpenShortcut,
+  rankProjectFiles,
+} from '../projectEditor'
 import type { FileRev, ProjectEditorEntry, ProjectSearchMatch, ProjectSearchResults } from '../types'
 
 const props = defineProps<{ show: boolean; projectPath: string; projectName: string }>()
@@ -135,6 +140,7 @@ const lang = computed(() => (openRel.value ? langOfPath(openRel.value) : null))
 const markdownFile = computed(() => isMarkdownFile(openRel.value))
 const editorMode = ref<'edit' | 'preview'>('edit')
 const editorRef = ref<InstanceType<typeof CodeEditor> | null>(null)
+const searchInput = ref<HTMLInputElement | null>(null)
 const searchQuery = ref('')
 const includePattern = ref('')
 const excludePattern = ref('')
@@ -147,6 +153,12 @@ const searching = ref(false)
 const searchRequest = ref(0)
 const pendingSearchTimer = ref<ReturnType<typeof setTimeout> | null>(null)
 const gitRef = ref('working')
+const quickOpenOpen = ref(false)
+const quickOpenQuery = ref('')
+const quickOpenActiveIndex = ref(0)
+const quickOpenInput = ref<HTMLInputElement | null>(null)
+let quickOpenPreviousFocus: HTMLElement | null = null
+const quickOpenFiles = computed(() => rankProjectFiles(files.value, quickOpenQuery.value).slice(0, 50))
 
 function resizeSidebarBy(delta: number) {
   const maxWidth = Math.max(PROJECT_SIDEBAR_MIN_WIDTH, Math.min(PROJECT_SIDEBAR_MAX_WIDTH, window.innerWidth - 320))
@@ -484,6 +496,73 @@ function openSourceControl() {
   sideView.value = 'git'
 }
 
+function openSearch() {
+  sideView.value = 'search'
+  void nextTick(() => searchInput.value?.focus())
+}
+
+function openQuickOpen() {
+  quickOpenPreviousFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null
+  closeTreeContextMenu()
+  quickOpenQuery.value = ''
+  quickOpenActiveIndex.value = 0
+  quickOpenOpen.value = true
+  void nextTick(() => quickOpenInput.value?.focus())
+}
+
+function closeQuickOpen(restoreFocus = true) {
+  quickOpenOpen.value = false
+  quickOpenQuery.value = ''
+  if (restoreFocus) {
+    void nextTick(() => {
+      if (quickOpenPreviousFocus?.isConnected) quickOpenPreviousFocus.focus()
+      quickOpenPreviousFocus = null
+    })
+  } else {
+    quickOpenPreviousFocus = null
+  }
+}
+
+function openQuickOpenFile(entry: ProjectEditorEntry) {
+  closeQuickOpen(false)
+  sideView.value = 'explorer'
+  selectFile(entry.path)
+}
+
+function onQuickOpenKeydown(event: KeyboardEvent) {
+  if (!props.show || event.isComposing) return
+
+  if (quickOpenOpen.value) {
+    const noModifier = !event.metaKey && !event.ctrlKey && !event.altKey
+    if (event.key === 'Escape') {
+      event.preventDefault()
+      event.stopPropagation()
+      closeQuickOpen()
+    } else if (noModifier && event.key === 'ArrowDown') {
+      event.preventDefault()
+      event.stopPropagation()
+      quickOpenActiveIndex.value = Math.min(quickOpenActiveIndex.value + 1, Math.max(0, quickOpenFiles.value.length - 1))
+    } else if (noModifier && event.key === 'ArrowUp') {
+      event.preventDefault()
+      event.stopPropagation()
+      quickOpenActiveIndex.value = Math.max(quickOpenActiveIndex.value - 1, 0)
+    } else if (noModifier && event.key === 'Enter') {
+      event.preventDefault()
+      event.stopPropagation()
+      const entry = quickOpenFiles.value[quickOpenActiveIndex.value]
+      if (entry) openQuickOpenFile(entry)
+    }
+    return
+  }
+
+  if (!isProjectFileQuickOpenShortcut(event, /Mac/i.test(navigator.platform))) return
+  if (leaving.value !== null || deleteTarget.value !== null) return
+  if (document.querySelector('.app-overlay, .gs-backdrop')) return
+  event.preventDefault()
+  event.stopPropagation()
+  openQuickOpen()
+}
+
 function requestClose() {
   if (dirty.value) {
     leavingLine = undefined
@@ -524,6 +603,10 @@ function reset() {
   searchResults.value = null
   searchError.value = null
   gitRef.value = 'working'
+  quickOpenOpen.value = false
+  quickOpenQuery.value = ''
+  quickOpenActiveIndex.value = 0
+  quickOpenPreviousFocus = null
   if (pendingSearchTimer.value) clearTimeout(pendingSearchTimer.value)
 }
 
@@ -538,16 +621,26 @@ watch(
   { immediate: true },
 )
 watch([searchQuery, includePattern, excludePattern, caseSensitive, wholeWord, regexMode], scheduleSearch)
+watch(quickOpenQuery, () => { quickOpenActiveIndex.value = 0 })
+watch(quickOpenFiles, (matches) => {
+  if (quickOpenActiveIndex.value >= matches.length) quickOpenActiveIndex.value = Math.max(0, matches.length - 1)
+})
+watch(quickOpenActiveIndex, (index) => {
+  if (!quickOpenOpen.value) return
+  void nextTick(() => document.getElementById(`project-quick-open-option-${index}`)?.scrollIntoView?.({ block: 'nearest' }))
+})
 watch(sideView, (view) => {
   if (view === 'search' && searchQuery.value.trim()) void runSearch()
 })
 onMounted(() => {
+  window.addEventListener('keydown', onQuickOpenKeydown, true)
   document.addEventListener('pointerdown', onCreateOutsidePointerDown, true)
   document.addEventListener('pointerdown', onTreeContextOutsidePointerDown, true)
   document.addEventListener('keydown', onTreeContextKeyDown, true)
 })
 onUnmounted(() => {
   stopSidebarResize()
+  window.removeEventListener('keydown', onQuickOpenKeydown, true)
   document.removeEventListener('pointerdown', onCreateOutsidePointerDown, true)
   document.removeEventListener('pointerdown', onTreeContextOutsidePointerDown, true)
   document.removeEventListener('keydown', onTreeContextKeyDown, true)
@@ -555,7 +648,7 @@ onUnmounted(() => {
   if (pendingSearchTimer.value) clearTimeout(pendingSearchTimer.value)
 })
 
-defineExpose({ requestClose, openSourceControl })
+defineExpose({ requestClose, openSourceControl, openSearch })
 </script>
 
 <template>
@@ -563,7 +656,7 @@ defineExpose({ requestClose, openSourceControl })
     <aside class="project-workspace-sidebar" :style="{ width: `${sidebarWidth}px`, flexBasis: `${sidebarWidth}px` }">
       <div class="project-activity" :aria-label="t('projectEditor.views')">
         <button :class="{ active: sideView === 'explorer' }" :aria-label="t('projectEditor.explorer')" v-tooltip="t('projectEditor.explorer')" @click="sideView = 'explorer'"><IconFile /></button>
-        <button :class="{ active: sideView === 'search' }" :aria-label="t('projectEditor.search')" v-tooltip="t('projectEditor.search')" @click="sideView = 'search'"><IconSearch /></button>
+        <button :class="{ active: sideView === 'search' }" :aria-label="t('projectEditor.search')" v-tooltip="t('projectEditor.search')" @click="openSearch"><IconSearch /></button>
         <button :class="{ active: sideView === 'git' }" :aria-label="t('projectEditor.sourceControl')" v-tooltip="t('projectEditor.sourceControl')" @click="sideView = 'git'"><IconGitBranch /></button>
       </div>
 
@@ -623,7 +716,7 @@ defineExpose({ requestClose, openSourceControl })
         <header class="project-side-head"><span>{{ t('projectEditor.search') }}</span></header>
         <div class="project-search-form">
           <form class="project-search-query" @submit.prevent="runSearch">
-            <input v-model="searchQuery" autofocus :placeholder="t('projectEditor.searchPlaceholder')">
+            <input ref="searchInput" v-model="searchQuery" :placeholder="t('projectEditor.searchPlaceholder')">
             <button type="submit" :aria-label="t('projectEditor.search')"><IconSearch /></button>
           </form>
           <div class="project-search-toggles">
@@ -725,6 +818,58 @@ defineExpose({ requestClose, openSourceControl })
           <IconTrash />
           {{ t('projectEditor.delete') }}
         </button>
+      </div>
+    </Teleport>
+
+    <Teleport to="body">
+      <div
+        v-if="quickOpenOpen"
+        class="project-quick-open-backdrop"
+        @click.self="closeQuickOpen()"
+      >
+        <section
+          class="project-quick-open"
+          role="dialog"
+          aria-modal="true"
+          :aria-label="t('projectEditor.quickOpenTitle')"
+        >
+          <h2>{{ t('projectEditor.quickOpenTitle') }}</h2>
+          <input
+            ref="quickOpenInput"
+            v-model="quickOpenQuery"
+            class="project-quick-open-input"
+            type="search"
+            role="combobox"
+            aria-autocomplete="list"
+            aria-haspopup="listbox"
+            aria-controls="project-quick-open-list"
+            :aria-expanded="true"
+            :aria-activedescendant="quickOpenFiles.length ? `project-quick-open-option-${quickOpenActiveIndex}` : undefined"
+            :aria-label="t('projectEditor.quickOpenPlaceholder')"
+            :placeholder="t('projectEditor.quickOpenPlaceholder')"
+          >
+          <div id="project-quick-open-list" class="project-quick-open-list" role="listbox">
+            <button
+              v-for="(entry, index) in quickOpenFiles"
+              :id="`project-quick-open-option-${index}`"
+              :key="entry.path"
+              type="button"
+              class="project-quick-open-option"
+              role="option"
+              :aria-selected="quickOpenActiveIndex === index"
+              @mouseenter="quickOpenActiveIndex = index"
+              @mousedown.prevent
+              @click="openQuickOpenFile(entry)"
+            >
+              <component :is="fileIconFor(entry.path)" class="project-quick-open-icon" />
+              <span class="project-quick-open-name">{{ entry.path.slice(entry.path.lastIndexOf('/') + 1) }}</span>
+              <span class="project-quick-open-path">{{ entry.path.includes('/') ? entry.path.slice(0, entry.path.lastIndexOf('/')) : projectName }}</span>
+            </button>
+            <p v-if="!quickOpenFiles.length" class="project-quick-open-empty">
+              {{ t('projectEditor.quickOpenNoResults') }}
+            </p>
+          </div>
+        </section>
       </div>
     </Teleport>
 
@@ -895,6 +1040,69 @@ defineExpose({ requestClose, openSourceControl })
 .project-search-match code { overflow: hidden; flex: 1; text-overflow: ellipsis; white-space: nowrap; }
 .project-search-match code :deep(mark) { border-radius: 2px; background: color-mix(in srgb, var(--accent) 36%, transparent); color: var(--text); }
 .project-source-panel > p { padding: 0 12px; color: var(--text-mute); font-size: 11px; }
+.project-quick-open-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: max(48px, 9vh) 16px 20px;
+  background: rgb(0 0 0 / 28%);
+  backdrop-filter: blur(2px);
+  -webkit-backdrop-filter: blur(2px);
+}
+.project-quick-open {
+  display: flex;
+  width: min(640px, 100%);
+  max-height: min(520px, 72vh);
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+  box-shadow: var(--shadow-lg);
+}
+.project-quick-open h2 {
+  margin: 0;
+  padding: 13px 15px 8px;
+  color: var(--text-secondary);
+  font-size: 11px;
+  font-weight: 600;
+}
+.project-quick-open-input {
+  flex: 0 0 auto;
+  margin: 0 12px 9px;
+  padding: 9px 10px;
+  border: 1px solid var(--accent);
+  border-radius: 6px;
+  outline: 0;
+  background: var(--surface-2);
+  color: var(--text);
+  font-size: 13px;
+}
+.project-quick-open-list { min-height: 0; overflow: auto; padding: 0 6px 7px; }
+.project-quick-open-option {
+  display: flex;
+  width: 100%;
+  min-height: 32px;
+  align-items: center;
+  gap: 9px;
+  padding: 5px 9px;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  text-align: left;
+  font-size: 11px;
+}
+.project-quick-open-option[aria-selected="true"],
+.project-quick-open-option:hover { background: var(--surface-hover); color: var(--text); }
+.project-quick-open-icon { flex: 0 0 15px; width: 15px; height: 15px; color: var(--text-mute); }
+.project-quick-open-name { overflow: hidden; flex: 0 1 auto; text-overflow: ellipsis; white-space: nowrap; }
+.project-quick-open-path { overflow: hidden; flex: 1; color: var(--text-mute); text-align: right; text-overflow: ellipsis; white-space: nowrap; }
+.project-quick-open-empty { padding: 14px 10px; color: var(--text-mute); text-align: center; font-size: 11px; }
 @media (max-width: 720px) {
   .project-workspace-sidebar { flex-basis: 235px; min-width: 190px; }
   .project-activity { flex-basis: 38px; }

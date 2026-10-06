@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest'
-import { highlightSearchLine, isMarkdownFile, isProjectEditorShortcut } from '../src/projectEditor'
+import {
+  highlightSearchLine,
+  isMarkdownFile,
+  getProjectSearchShortcutTarget,
+  isProjectEditorShortcut,
+  isProjectFileQuickOpenShortcut,
+  rankProjectFiles,
+} from '../src/projectEditor'
 
 describe('isMarkdownFile', () => {
   it('recognizes Markdown extensions for every filename, case-insensitively', () => {
@@ -21,6 +28,59 @@ describe('isProjectEditorShortcut', () => {
     expect(isProjectEditorShortcut({ key: 'e', metaKey: true, ctrlKey: false, shiftKey: false, altKey: false }, true)).toBe(false)
     expect(isProjectEditorShortcut({ key: 'e', metaKey: true, ctrlKey: false, shiftKey: true, altKey: true }, true)).toBe(false)
     expect(isProjectEditorShortcut({ key: 'e', metaKey: false, ctrlKey: true, shiftKey: true, altKey: false }, true)).toBe(false)
+  })
+})
+
+describe('getProjectSearchShortcutTarget', () => {
+  const macShortcut = { key: 'F', metaKey: true, ctrlKey: false, shiftKey: true, altKey: false }
+  const windowsShortcut = { key: 'f', metaKey: false, ctrlKey: true, shiftKey: true, altKey: false }
+
+  it('routes Cmd/Ctrl+Shift+F to project search only while the editor is open', () => {
+    expect(getProjectSearchShortcutTarget(macShortcut, true, true)).toBe('project')
+    expect(getProjectSearchShortcutTarget(windowsShortcut, false, true)).toBe('project')
+    expect(getProjectSearchShortcutTarget(macShortcut, true, false)).toBe('global')
+  })
+
+  it('rejects unrelated modifiers and keys', () => {
+    expect(getProjectSearchShortcutTarget({ ...macShortcut, metaKey: false }, true, true)).toBeNull()
+    expect(getProjectSearchShortcutTarget({ ...macShortcut, shiftKey: false }, true, true)).toBeNull()
+    expect(getProjectSearchShortcutTarget({ ...macShortcut, altKey: true }, true, true)).toBeNull()
+    expect(getProjectSearchShortcutTarget({ ...macShortcut, key: 'g' }, true, true)).toBeNull()
+  })
+})
+
+describe('isProjectFileQuickOpenShortcut', () => {
+  it('matches Cmd+P on macOS and Ctrl+P elsewhere', () => {
+    expect(isProjectFileQuickOpenShortcut({ key: 'p', metaKey: true, ctrlKey: false, shiftKey: false, altKey: false }, true)).toBe(true)
+    expect(isProjectFileQuickOpenShortcut({ key: 'P', metaKey: false, ctrlKey: true, shiftKey: false, altKey: false }, false)).toBe(true)
+  })
+
+  it('rejects the shortcut with missing, extra, or wrong-platform modifiers', () => {
+    expect(isProjectFileQuickOpenShortcut({ key: 'p', metaKey: false, ctrlKey: false, shiftKey: false, altKey: false }, true)).toBe(false)
+    expect(isProjectFileQuickOpenShortcut({ key: 'p', metaKey: true, ctrlKey: false, shiftKey: true, altKey: false }, true)).toBe(false)
+    expect(isProjectFileQuickOpenShortcut({ key: 'p', metaKey: true, ctrlKey: false, shiftKey: false, altKey: true }, true)).toBe(false)
+    expect(isProjectFileQuickOpenShortcut({ key: 'p', metaKey: false, ctrlKey: true, shiftKey: false, altKey: false }, true)).toBe(false)
+  })
+})
+
+describe('rankProjectFiles', () => {
+  const entries = [
+    { path: 'README.md', bytes: 10, isDir: false },
+    { path: 'src/components/ProjectFileEditor.vue', bytes: 20, isDir: false },
+    { path: 'src', bytes: 0, isDir: true },
+  ]
+
+  it('fuzzy-matches file names and omits directories', () => {
+    expect(rankProjectFiles(entries, 'pfe').map((entry) => entry.path)).toEqual([
+      'src/components/ProjectFileEditor.vue',
+    ])
+  })
+
+  it('lists files alphabetically when the query is empty', () => {
+    expect(rankProjectFiles(entries, '').map((entry) => entry.path)).toEqual([
+      'README.md',
+      'src/components/ProjectFileEditor.vue',
+    ])
   })
 })
 

@@ -32,6 +32,10 @@ features:
     details: Reopen a session in an embedded terminal, hand it to Terminal.app, iTerm2, Ghostty, Warp or cmux, or keep going in an in-app chat with model, reasoning effort and permission mode as live controls.
     link: /features/resume
     linkText: Resume and continue
+  - title: Edit project files
+    details: Browse and search a project, edit text and Markdown, preview docs, and inspect changes across linked Git worktrees—all in a full-screen workspace.
+    link: /features/project-editor
+    linkText: Project file editor
   - title: Token and cost stats
     details: Priced from live models.dev data and broken down by project, model and tool. The macOS menu bar shows today, 7-day and 30-day totals per agent.
     link: /features/stats

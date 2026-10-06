@@ -161,7 +161,7 @@ const k = (parts: string[]) => parts.join(sep)
 const agentToggleDisabled = (agent: Agent) =>
   (enabledAgents.value[agent] && visibleAgents.value.length === 1)
   || (!enabledAgents.value[agent] && visibleAgents.value.length >= MAX_ENABLED_AGENTS)
-// 分两组展示：全局（应用级，随处可用）/ 会话（作用于当前会话或其 tab）。
+// 按作用范围和上下文分组展示，避免把只在特定工作区生效的快捷键误标为全局。
 const shortcutGroups = [
   {
     title: 'settings.shortcut.groupGlobal',
@@ -178,6 +178,13 @@ const shortcutGroups = [
       { key: k([mod, ',']), label: 'settings.shortcut.settings' },
       { key: k([mod, '/']), label: 'settings.shortcut.shortcuts' },
       { key: 'Esc', label: 'settings.shortcut.escape' },
+    ],
+  },
+  {
+    title: 'settings.shortcut.groupProjectEditor',
+    items: [
+      { key: k([mod, shift, 'F']), label: 'settings.shortcut.projectEditorSearch' },
+      { key: k([mod, 'P']), label: 'settings.shortcut.quickOpenProjectFile' },
     ],
   },
   {

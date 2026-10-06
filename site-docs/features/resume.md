@@ -34,7 +34,13 @@ Claude Code and Codex sessions can be continued in the app's own chat. The setti
 
 You can `@`-mention files, attach images, and see Mermaid diagrams and tables rendered as you go. Slash commands work, including `/fork`, which branches the session into a copy without touching the original.
 
+The model picker follows the available models and provider configuration. For Codex custom providers, models from the global `config.toml` appear with their configured IDs; new and resumed chats use the configured model and reasoning effort by default, while an explicit picker choice takes precedence.
+
 The other five agents get history, resume, export and analysis, but not in-app chat.
+
+## Switch sessions without losing your place
+
+The session navigator lets you find and switch to another session from the detail view. Open a session in the background to add it as a tab while keeping the current view in front. Going Back returns to the list without stopping a running in-app chat; reopen that session to restore it. Explicitly closing the chat stops it.
 
 ## Shell tabs
 

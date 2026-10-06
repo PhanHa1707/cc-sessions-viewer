@@ -4,7 +4,7 @@ import type { Agent, ProjectInfo, SessionMeta, TrashItem, Msg, UsageSummary } fr
 import { agentLabel, agentSupports } from './agentMeta'
 import * as api from './api'
 import { shortName } from './format'
-import { isProjectEditorShortcut } from './projectEditor'
+import { getProjectSearchShortcutTarget, isProjectEditorShortcut } from './projectEditor'
 import { t } from './i18n'
 import { convertFileSrc } from '@tauri-apps/api/core'
 import {
@@ -3860,12 +3860,17 @@ function openRepo() {
   api.openUrl(REPO_URL).catch((e) => notify(`${e}`, true))
 }
 
+function openContextualSearch() {
+  if (showProjectEditor.value) projectFileEditorRef.value?.openSearch()
+  else openGlobalSearch()
+}
+
 function runEditCommand(command: 'undo' | 'redo' | 'cut' | 'copy' | 'paste' | 'selectAll') {
   document.execCommand(command)
 }
 
 const menuHandlers: MenuHandlers = {
-  'open-global-search': () => openGlobalSearch(),
+  'open-global-search': openContextualSearch,
   'find-in-session': () => activeUiId.value !== null ? focusTuiSearchBox() : focusSearchBox(),
   'find-next': () => chatNavigate(1),
   'find-prev': () => chatNavigate(-1),
@@ -3971,7 +3976,7 @@ const windowMenus = computed<WindowMenuGroup[]>(() => [
       { type: 'item', id: 'find-next', label: t('menu.find.next'), shortcut: 'Ctrl+G' },
       { type: 'item', id: 'find-prev', label: t('menu.find.prev'), shortcut: 'Ctrl+Shift+G' },
       { type: 'separator' },
-      { type: 'item', id: 'open-global-search', label: t('menu.find.inAll'), shortcut: 'Ctrl+Shift+F' },
+      { type: 'item', id: 'open-global-search', label: showProjectEditor.value ? t('projectEditor.search') : t('menu.find.inAll'), shortcut: 'Ctrl+Shift+F' },
     ],
   },
   {
@@ -4375,6 +4380,12 @@ onMounted(() => {
         if (activeProject.value?.exists) openProjectEditor(activeProject.value.displayPath)
         return
       }
+      const searchTarget = getProjectSearchShortcutTarget(e, _isMac, showProjectEditor.value)
+      if (searchTarget) {
+        e.preventDefault()
+        openContextualSearch()
+        return
+      }
       if (!mod || otherMod || e.altKey) return
 
       const key = e.key.toLowerCase()
@@ -4390,8 +4401,6 @@ onMounted(() => {
         e.preventDefault(); newDefaultAction()
       } else if (key === 'r' && !e.shiftKey) {
         e.preventDefault(); renameActiveTab()
-      } else if (key === 'f' && e.shiftKey) {
-        e.preventDefault(); openGlobalSearch()
       } else if (key === 'f' && !e.shiftKey) {
         e.preventDefault()
         activeUiId.value !== null ? focusTuiSearchBox() : focusSearchBox()

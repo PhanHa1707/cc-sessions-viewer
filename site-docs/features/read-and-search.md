@@ -18,7 +18,7 @@ In the file, a call and its result are separate records, sometimes many lines ap
 
 ### Thinking blocks, collapsed until you want them
 
-Extended thinking is often longer than the answer. It is preserved and folded, and you can expand it per message or for the whole session at once.
+Extended thinking is often longer than the answer. It is preserved and folded, and you can expand it per message or for the whole session at once. Consecutive reasoning steps are grouped into one compact row. A global setting and per-session controls can hide reasoning independently of tool calls.
 
 ### Diffs rendered as diffs
 
@@ -46,7 +46,11 @@ Long sessions are mostly agent output. The prompt list strips all of it away and
 
 ### Views history
 
-Sessions you have read recently stay in a history list, per project, with search and favourites. Reopening yesterday's session does not mean finding it again.
+Sessions you have read recently stay in a history list, per project, with search and favourites. Reopening yesterday's session does not mean finding it again. Session previews refresh when their source file changes; Pi previews use the latest user message.
+
+### Large Pi sessions
+
+A Pi transcript opens with its most recent message page first. Scroll upward to load older messages as needed. Search, jump-to-prompt, global search and export still load the full history when they need it.
 
 ## Nothing is written back
 

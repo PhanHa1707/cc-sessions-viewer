@@ -32,6 +32,10 @@ features:
     details: 在内嵌终端里重开会话，或交给 Terminal.app、iTerm2、Ghostty、Warp、cmux，也可以直接在应用内的对话里继续，模型、推理强度、权限模式都是实时可调的。
     link: /zh/features/resume
     linkText: 恢复与继续
+  - title: 项目文件编辑器
+    details: 在全屏工作区浏览和搜索项目，编辑文本与 Markdown、预览文档，并查看主工作树和 linked worktree 的 Git 改动。
+    link: /zh/features/project-editor
+    linkText: 打开项目文件编辑器指南
   - title: Token 与成本统计
     details: 价格取自 models.dev 的实时数据，按项目、模型、工具拆开。macOS 菜单栏直接显示各 agent 的今日 / 7 天 / 30 天用量。
     link: /zh/features/stats

@@ -29,7 +29,9 @@ export const zh: Locale = {
         items: [
           { text: '阅读与搜索', link: '/zh/features/read-and-search' },
           { text: '恢复与继续', link: '/zh/features/resume' },
+          { text: '项目文件编辑器', link: '/zh/features/project-editor' },
           { text: '分屏、标签与 git diff', link: '/zh/features/panes' },
+
           { text: 'Token 与成本统计', link: '/zh/features/stats' },
           { text: '导出与回收站', link: '/zh/features/export-and-trash' },
           { text: '键盘快捷键', link: '/zh/features/shortcuts' },

@@ -32,6 +32,10 @@ features:
     details: 内蔵ターミナルで開き直す、Terminal.app / iTerm2 / Ghostty / Warp / cmux に渡す、あるいはアプリ内チャットでそのまま続ける。モデル・推論の強さ・権限モードはその場で切り替えられます。
     link: /ja/features/resume
     linkText: 再開と継続
+  - title: プロジェクトファイルエディター
+    details: 全画面ワークスペースでプロジェクトを閲覧・検索し、テキストや Markdown を編集・プレビューして、linked worktree の Git 変更も確認できます。
+    link: /ja/features/project-editor
+    linkText: プロジェクトエディターのガイド
   - title: トークンとコストの統計
     details: models.dev のライブ価格をもとに、プロジェクト・モデル・ツール別に集計します。macOS のメニューバーにはエージェントごとの今日・7 日・30 日の合計が出ます。
     link: /ja/features/stats

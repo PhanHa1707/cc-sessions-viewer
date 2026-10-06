@@ -304,6 +304,20 @@ const factory = (props: Partial<Props> = {}) =>
   })
 
 describe('SettingsModal', () => {
+  it('lists project quick open under an editor-only shortcut group', () => {
+    const wrapper = factory({ initialTab: 'shortcuts' })
+    const group = wrapper.findAll('.set-shortcut-group').find((candidate) =>
+      candidate.find('.set-shortcut-group-title').text() === 'Project editor',
+    )
+
+    expect(group).toBeDefined()
+    const rows = group!.findAll('.set-shortcut-row')
+    const searchRow = rows.find((row) => row.find('.set-shortcut-label').text() === 'Search project files')
+    const quickOpenRow = rows.find((row) => row.find('.set-shortcut-label').text() === 'Quick open a file (editor only)')
+    expect(searchRow?.find('.set-shortcut-key').text()).toContain('F')
+    expect(quickOpenRow?.find('.set-shortcut-key').text()).toContain('P')
+  })
+
   it('shows the restore-defaults action and emits resetSettings', async () => {
     const wrapper = factory()
     const resetBtn = wrapper.get('[data-reset-settings]')
