@@ -2704,6 +2704,19 @@ mod tests {
     use serde_json::json;
 
     #[test]
+    fn docs_public_fixture_claude_parser() {
+        let msgs = super::super::docs_fixtures::with_fixture(
+            include_str!("../../../site-docs/public/examples/claude-code-adapter.jsonl"),
+            |path| {
+                let mut msgs = read(path).expect("parse public Claude fixture");
+                crate::util::post_process_session_msgs(&mut msgs);
+                msgs
+            },
+        );
+        super::super::docs_fixtures::assert_expected("claude-code", &msgs);
+    }
+
+    #[test]
     fn fork_jsonl_clones_with_fresh_ids_and_title() {
         // 两条链式记录（child.parentUuid 指向 parent.uuid）+ 原标题。
         let content = [

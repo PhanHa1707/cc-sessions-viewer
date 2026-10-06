@@ -26,7 +26,7 @@ https://github.com/user-attachments/assets/9bcb92a8-e5b8-40e5-b492-af252162309b
 Sessions Viewer は、ローカルのエージェントセッション履歴を検索可能なワークスペースにまとめます。プロジェクトを開いて内容を正確に振り返り、JSONL ファイルを手作業で探すことなく同じ場所から作業を続けられます。
 
 > [!TIP]
-> **新機能 — ツール管理。** 7 つのエージェントの skill・MCP サーバー・hook・グローバル指示ファイルを 1 つの画面にまとめます。マシン上の重複した skill や切れたリンクを見つけて修復し、入力を始める前に MCP サーバーがコンテキストをどれだけ消費しているかを確認し、hook は信頼する前に試し実行できます。すべての変更は、書き換わるファイルを先に提示します。
+> **新機能 — ツール管理。** 7 つのエージェントの skill・MCP サーバー・hook・グローバル指示ファイルを 1 つの画面にまとめます。マシン上の重複した skill や切れたリンクを見つけて修復し、キャッシュによる MCP 文脈推定とファイル変更を確認できます。Hook のテスト前にはコマンドを読みます。dry-run は実際にスクリプトを実行し、サンドボックスではありません。
 >
 > → **[ツール管理ガイドを読む](https://sessions-viewer.js-bridge.com/ja/tools/)**
 
@@ -41,7 +41,7 @@ Sessions Viewer は、ローカルのエージェントセッション履歴を�
 
 - **アプリ内チャット** — Claude Code と Codex のセッションを内蔵チャットで新規作成・再開。モデル、推論強度（Opus **Ultracode** 対応）、権限モードを切り替え可能。
 - **ワンクリック再開** — 埋め込みターミナルまたは **Terminal.app**、**cmux**、**iTerm2**、**Ghostty**、**Warp** でセッションを再開・新規作成。
-- **Shell タブ** — エージェントセッションの横で通常のシェルコマンドを実行でき、タブは再起動後も保持。
+- **Shell タブ** — agent の隣で通常のコマンドを実行。再起動後はタイトル／ディレクトリを復元して新しいシェルを開き、以前のプロセスや実行中のコマンドは復元しません。
 - **起動引数** — エージェントごとに CLI フラグ（例：`--dangerously-skip-permissions`）を設定し、再開・新規作成時に自動追加。
 
 ### プロジェクトを整理する
@@ -53,15 +53,19 @@ Sessions Viewer は、ローカルのエージェントセッション履歴を�
 
 ### 利用状況を把握・共有する
 
-- **統計と料金** — models.dev のリアルタイム料金で、プロジェクト・モデル・ツール別にトークン消費とコストを分析。macOS のメニューバーには各エージェントの Today / 7d / 30d 集計を表示。
-- **柔軟なエクスポート** — 単一または複数セッションをオフラインで読める Markdown、HTML、可逆 JSON として保存。
-- **読み取り専用の安全性** — オリジナルの JSONL は変更・削除しません。
+- **統計と料金** — キャッシュした models.dev 料金で、記録されたトークンと推定コストをプロジェクト・モデル・ツール別に集計。macOS のメニューバーには使用量がある Today / 7d / 30d の合計を表示。推定は請求書ではありません。
+- **柔軟なエクスポート** — Markdown、HTML、解析済みメッセージ JSON に保存。外部画像や読み取れないローカル画像はリンクのまま残る場合があります。完全なバックアップにはネイティブファイルを残してください。
+- **履歴の読み取り専用閲覧** — 閲覧・検索・エクスポートは元の記録を書き換えません。リネーム、ゴミ箱／復元、続行、編集は別の書き込み操作です。
+
+履歴の処理はローカルですが、アプリ全体が通信しないわけではありません。オンラインのチャット／再開は設定した CLI／プロバイダを使い、更新・価格・利用枠も通信する場合があります。[プライバシーとデータの扱い](https://sessions-viewer.js-bridge.com/ja/guide/privacy)を参照してください。
 
 ### 対応するセッションソース
 
-Claude Code、Codex、Grok Build、Kimi Code、Pi、Antigravity CLI、opencode に対応しています。Grok Build、Kimi Code、Pi では履歴、ターミナル、エクスポート、分析、再開のワークフローを利用できますが、GUI Chat は意図的に含めていません。
+Claude Code、Codex、Grok Build、Kimi Code、Pi、Antigravity CLI、opencode に対応します。7 つとも履歴閲覧・検索・エクスポート・ターミナル再開に対応し、内蔵チャットは Claude Code と Codex のみです。使用量の統計は記録されたフィールドに依存し、対応する Antigravity の記録には含まれません。
 
 それぞれがセッションをディスクのどこに保存するか、ターミナルから記録を読むコマンドとあわせて [sessions-viewer.js-bridge.com/ja/agents/](https://sessions-viewer.js-bridge.com/ja/agents/) にまとめています。
+
+手順：[Claude Code 履歴](https://sessions-viewer.js-bridge.com/ja/guide/claude-code-session-viewer) · [Codex rollout](https://sessions-viewer.js-bridge.com/ja/guide/codex-session-viewer) · [対応範囲と合成例](https://sessions-viewer.js-bridge.com/ja/guide/compatibility) · [プロジェクトと保守](https://sessions-viewer.js-bridge.com/ja/guide/about)。
 
 ## スクリーンショット
 
@@ -146,8 +150,8 @@ Claude Code、Codex、Grok Build、Kimi Code、Pi、Antigravity CLI、opencode �
 > [!IMPORTANT]
 > **macOS: このビルドは公証（notarization）を受けていません。** ad-hoc 署名のみのため、初回
 > 起動時に Gatekeeper が「"Sessions Viewer"は開けません。Apple は、悪質なソフトウェアが含まれ
-> ていないことを確認できませんでした」と表示してブロックします。署名なしのオープンソース
-> ビルドでは正常な挙動で、異常ではありません。
+> ていないことを確認できませんでした」と表示してブロックします。Apple がビルドを検証していない
+> という意味で、安全の証明ではありません。このプロジェクトの Releases から取得し、信頼すると判断した場合のみ続行してください。
 >
 > **macOS 15 Sequoia 以降** —— 右クリック →「開く」による回避は Apple が廃止しました：
 > 1. アプリをダブルクリックし、警告を閉じます。
@@ -158,11 +162,11 @@ Claude Code、Codex、Grok Build、Kimi Code、Pi、Antigravity CLI、opencode �
 > **macOS 14 Sonoma 以前** —— Finder でアプリを右クリック → **開く** → ダイアログで再度
 > **開く**。初回のみです。
 >
-> **どちらの場合もターミナルから:**
+> **信頼できるダウンロードに限り、ターミナルから:** 隔離属性を削除し、その Gatekeeper 確認を回避します。上のシステム設定を優先してください。
 > ```bash
 > xattr -dr com.apple.quarantine "/Applications/Sessions Viewer.app"
 > ```
-> `Operation not permitted` と出る場合は `sudo` を付けてください。
+> `Operation not permitted` の場合は所有権とインストール先を確認し、無条件に権限を上げないでください。
 
 Linux 版 `.AppImage` はポータブル形式 —— `chmod +x` で実行可能になります。`.deb` のインストール：
 ```bash
@@ -179,7 +183,7 @@ npm run tauri dev      # 開発モード
 npm run tauri build    # バンドル
 ```
 
-必要環境：Node 20+、Rust stable。アーキテクチャの詳細は [`CLAUDE.md`](CLAUDE.md) を参照。
+必要環境：最新の Node 22、Rust stable。アーキテクチャの詳細は [`CLAUDE.md`](CLAUDE.md) を参照。
 
 ## コントリビュート
 

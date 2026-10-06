@@ -5,7 +5,7 @@ description: Antigravity CLI (agy) stores conversations under ~/.gemini/antigrav
 
 # Where Antigravity CLI stores session history
 
-Antigravity CLI (`agy`) gives each conversation a UUID directory and buries the transcript a few levels down:
+Antigravity CLI (`agy`) stores transcript steps under `~/.gemini/antigravity-cli/brain/<conversation-uuid>/.system_generated/logs/`. Compare `transcript.jsonl` with `transcript_full.jsonl`; neither is guaranteed complete:
 
 ```
 ~/.gemini/antigravity-cli/brain/<conversation-uuid>/.system_generated/logs/transcript.jsonl
@@ -71,10 +71,23 @@ jq -r '[.step_index, .source, .type] | @tsv' \
 Pull out just what you typed, with the XML shell removed:
 
 ```bash
-jq -r 'select(.type=="USER_INPUT") | .content' \
-  ~/.gemini/antigravity-cli/brain/<uuid>/.system_generated/logs/transcript.jsonl \
-  | sed -n 's/.*<USER_REQUEST>\(.*\)<\/USER_REQUEST>.*/\1/p'
+jq -r 'select(.type=="USER_INPUT") | .content | strings
+  | select(contains("<USER_REQUEST>") and contains("</USER_REQUEST>"))
+  | split("<USER_REQUEST>")[1] | split("</USER_REQUEST>")[0]' \
+  ~/.gemini/antigravity-cli/brain/<uuid>/.system_generated/logs/transcript.jsonl
 ```
+
+## How do I resume this conversation?
+
+Run `agy --conversation CONVERSATION_ID` from the workspace with the matching CLI installed. The app offers [terminal resume](/features/resume), not in-app Antigravity chat.
+
+## Source and limitations
+
+Implementation: [Antigravity CLI adapter](https://github.com/jerrywu001/cc-sessions-viewer/blob/22fefc6/src-tauri/src/agents/agy.rs).
+
+<!--@include: ../.vitepress/snippets/reference-en.md-->
+
+This page describes the `agy` files read by the adapter, not every product named Antigravity. A larger file may preserve more content, but cannot recover content already absent from both files. See [missing-session troubleshooting](/guide/troubleshooting).
 
 ## Or open it in an app
 

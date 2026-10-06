@@ -1,0 +1,4 @@
+{"method":"session/update","params":{"update":{"sessionUpdate":"user_message_chunk","content":{"type":"text","text":"Question"}}}}
+{"method":"_x.ai/session/update","params":{"update":{"sessionUpdate":"agent_message_chunk","content":[{"type":"text","text":"Answer"},{"type":"image"}]}}}
+{"method":"session/update","params":{"update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":"Hidden"}}}}
+{"type":"text","text":"Not an ACP update"}

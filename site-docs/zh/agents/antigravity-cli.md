@@ -5,7 +5,7 @@ description: Antigravity CLI（agy）把对话放在 ~/.gemini/antigravity-cli/b
 
 # Antigravity CLI 的会话记录存在哪
 
-Antigravity CLI（`agy`）给每个对话一个 UUID 目录，记录埋在里面好几层：
+Antigravity CLI（`agy`）把 step 记录保存在 `~/.gemini/antigravity-cli/brain/<对话 uuid>/.system_generated/logs/` 下。比较 `transcript.jsonl` 与 `transcript_full.jsonl`，两者都不保证完整：
 
 ```
 ~/.gemini/antigravity-cli/brain/<对话 uuid>/.system_generated/logs/transcript.jsonl
@@ -71,10 +71,23 @@ jq -r '[.step_index, .source, .type] | @tsv' \
 只把你自己敲的话抠出来，去掉 XML 壳：
 
 ```bash
-jq -r 'select(.type=="USER_INPUT") | .content' \
-  ~/.gemini/antigravity-cli/brain/<uuid>/.system_generated/logs/transcript.jsonl \
-  | sed -n 's/.*<USER_REQUEST>\(.*\)<\/USER_REQUEST>.*/\1/p'
+jq -r 'select(.type=="USER_INPUT") | .content | strings
+  | select(contains("<USER_REQUEST>") and contains("</USER_REQUEST>"))
+  | split("<USER_REQUEST>")[1] | split("</USER_REQUEST>")[0]' \
+  ~/.gemini/antigravity-cli/brain/<uuid>/.system_generated/logs/transcript.jsonl
 ```
+
+## 怎么恢复这个对话
+
+在工作区目录运行 `agy --conversation CONVERSATION_ID`，需要已安装对应 CLI。应用提供[终端恢复](/zh/features/resume)，不提供 Antigravity 内置对话。
+
+## 依据与限制
+
+实现依据：[Antigravity CLI 适配器](https://github.com/jerrywu001/cc-sessions-viewer/blob/22fefc6/src-tauri/src/agents/agy.rs)。
+
+<!--@include: ../../.vitepress/snippets/reference-zh.md-->
+
+此页描述适配器读取的 `agy` 文件，不覆盖所有名为 Antigravity 的产品。较大的文件可能保留更多内容，但无法恢复两份文件都已丢失的记录。见[找不到会话的排障指南](/zh/guide/troubleshooting)。
 
 ## 或者用应用打开
 

@@ -27,7 +27,7 @@ Codex also keeps a schema-versioned state database at `~/.codex/state_<N>.sqlite
 
 ## The path does not tell you the project
 
-The directory hierarchy is dates, not projects. The working directory is recorded in a field inside the file. So "show me every Codex session for this repo" cannot be answered from a directory listing. Something has to open each file and read the `cwd` out of it.
+The directory hierarchy is dates, not projects. The working directory is recorded in `session_meta.payload.cwd` inside the file. So "show me every Codex session for this repo" cannot be answered from a directory listing. Something has to open each file and read the `cwd` out of it.
 
 ## Two kinds of record
 
@@ -58,17 +58,31 @@ jq -r 'select(.type=="event_msg")
 Find which project a session belongs to, without opening it in an editor:
 
 ```bash
-jq -r 'select(.cwd) | .cwd' <file>.jsonl | head -1
+jq -r 'select(.type=="session_meta") | .payload.cwd // empty' SESSION.jsonl | head -1
 ```
 
 Group every session by project. The directory layout will not give you this listing, so the loop has to open every file:
 
 ```bash
 for f in ~/.codex/sessions/*/*/*/rollout-*.jsonl; do
-  jq -r 'select(.cwd) | .cwd' "$f" 2>/dev/null | head -1
+  jq -r 'select(.type=="session_meta") | .payload.cwd // empty' "$f" 2>/dev/null | head -1
 done | sort | uniq -c | sort -rn
 ```
 
+## How do I resume this session?
+
+Run `codex resume SESSION_ID` from the project's directory with Codex installed, or use the app's [terminal or in-app chat](/features/resume). The app excludes archived sessions from the ordinary list; open its archived-session view to find them.
+
+## Source and limitations
+
+Implementation: [Codex adapter](https://github.com/jerrywu001/cc-sessions-viewer/blob/22fefc6/src-tauri/src/agents/codex.rs). Upstream: [Codex documentation](https://developers.openai.com/codex/).
+
+<!--@include: ../.vitepress/snippets/reference-en.md-->
+
+The viewer reads the home-directory layout above; a CLI writing to a different `CODEX_HOME` is not automatically covered. See [missing-session troubleshooting](/guide/troubleshooting).
+
 ## Or open it in an app
 
-[Sessions Viewer](/guide/) does that grouping for you and caches it, pairs the split image records back together, and shows the 5-hour and weekly quota of a ChatGPT subscription while you work. It also reads [Claude Code](/agents/claude-code), [Grok Build](/agents/grok-build), [Kimi Code](/agents/kimi-code), [Pi](/agents/pi), [Antigravity CLI](/agents/antigravity-cli) and [opencode](/agents/opencode).
+Follow the [Codex project, archive, export and resume workflow](/guide/codex-session-viewer) for step-by-step use and manual-vs-GUI tradeoffs.
+
+[Sessions Viewer](/guide/) does that grouping for you and caches it, pairs split image records back together, and can show subscription quota windows when the authenticated account exposes them. Quota is not a token-cost invoice; see [statistics](/features/stats). It also reads [Claude Code](/agents/claude-code), [Grok Build](/agents/grok-build), [Kimi Code](/agents/kimi-code), [Pi](/agents/pi), [Antigravity CLI](/agents/antigravity-cli) and [opencode](/agents/opencode).

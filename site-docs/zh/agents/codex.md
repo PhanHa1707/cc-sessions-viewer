@@ -27,7 +27,7 @@ Codex 还在 `~/.codex/state_<N>.sqlite` 维护一个带 schema 版本号的状�
 
 ## 路径不告诉你项目是哪个
 
-目录层级是日期，不是项目。工作目录记在文件内部的一个字段里。所以「把这个仓库的所有 Codex 会话列给我」这个需求，光看目录列表答不出来，必须逐个打开文件把 `cwd` 读出来。
+目录层级是日期，不是项目。工作目录记在文件的 `session_meta.payload.cwd` 字段里。所以「把这个仓库的所有 Codex 会话列给我」这个需求，光看目录列表答不出来，必须逐个打开文件把 `cwd` 读出来。
 
 ## 两种记录
 
@@ -58,17 +58,31 @@ jq -r 'select(.type=="event_msg")
 不开编辑器就看出一个会话属于哪个项目：
 
 ```bash
-jq -r 'select(.cwd) | .cwd' <文件>.jsonl | head -1
+jq -r 'select(.type=="session_meta") | .payload.cwd // empty' SESSION.jsonl | head -1
 ```
 
 按项目归类所有会话。目录结构不肯给你这份列表，所以循环必须打开每一个文件：
 
 ```bash
 for f in ~/.codex/sessions/*/*/*/rollout-*.jsonl; do
-  jq -r 'select(.cwd) | .cwd' "$f" 2>/dev/null | head -1
+  jq -r 'select(.type=="session_meta") | .payload.cwd // empty' "$f" 2>/dev/null | head -1
 done | sort | uniq -c | sort -rn
 ```
 
+## 怎么恢复这个会话
+
+在项目目录运行 `codex resume SESSION_ID`，需要已安装 Codex；也可以用应用的[终端或内置对话](/zh/features/resume)。普通列表默认不包含已归档记录，请打开应用的已归档会话视图查找。
+
+## 依据与限制
+
+实现依据：[Codex 适配器](https://github.com/jerrywu001/cc-sessions-viewer/blob/22fefc6/src-tauri/src/agents/codex.rs)。上游：[Codex 文档](https://developers.openai.com/codex/)。
+
+<!--@include: ../../.vitepress/snippets/reference-zh.md-->
+
+查看器读取上述 home 目录布局；CLI 用其他 `CODEX_HOME` 写入的记录不会自动覆盖。见[找不到会话的排障指南](/zh/guide/troubleshooting)。
+
 ## 或者用应用打开
 
-[Sessions Viewer](/zh/guide/) 替你做这份归类并且缓存住，把被拆开的图片记录重新配对，还会在你干活时显示 ChatGPT 订阅的 5 小时 / 周额度。它同时还读 [Claude Code](/zh/agents/claude-code)、[Grok Build](/zh/agents/grok-build)、[Kimi Code](/zh/agents/kimi-code)、[Pi](/zh/agents/pi)、[Antigravity CLI](/zh/agents/antigravity-cli) 和 [opencode](/zh/agents/opencode)。
+具体步骤和手动／GUI 取舍见 [Codex 项目定位、归档、导出与恢复流程](/zh/guide/codex-session-viewer)。
+
+[Sessions Viewer](/zh/guide/) 替你归类和缓存，将拆开的图片记录重新配对；认证账户返回订阅额度窗口时，也可以显示它。额度不等于 Token 成本账单，见[统计](/zh/features/stats)。它同时还读 [Claude Code](/zh/agents/claude-code)、[Grok Build](/zh/agents/grok-build)、[Kimi Code](/zh/agents/kimi-code)、[Pi](/zh/agents/pi)、[Antigravity CLI](/zh/agents/antigravity-cli) 和 [opencode](/zh/agents/opencode)。

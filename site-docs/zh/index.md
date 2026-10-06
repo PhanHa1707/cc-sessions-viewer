@@ -1,6 +1,6 @@
 ---
 layout: home
-title: Claude Code、Codex、opencode 会话记录查看器
+title: Sessions Viewer — Claude Code、Codex、opencode 会话查看器
 titleTemplate: false
 description: 一个免费的桌面应用，把 Claude Code、Codex、Grok Build、Kimi Code、Pi、Antigravity CLI 和 opencode 的本地会话记录读进同一个界面，可阅读、搜索、恢复。
 
@@ -37,18 +37,32 @@ features:
     link: /zh/features/project-editor
     linkText: 打开项目文件编辑器指南
   - title: Token 与成本统计
-    details: 价格取自 models.dev 的实时数据，按项目、模型、工具拆开。macOS 菜单栏直接显示各 agent 的今日 / 7 天 / 30 天用量。
+    details: 用缓存的 models.dev 价格按项目、模型、工具汇总已记录用量与估算成本，不等于服务商账单。macOS 显示有用量字段的今日 / 7 天 / 30 天汇总。
     link: /zh/features/stats
     linkText: 统计
   - title: 工具管理
     details: 七种 agent 的 skills、MCP 服务器、hooks 和指令文件集中在一个面板里。找出机器上重复的 skill 和断掉的链接，任何改动落盘前都先把要动的文件逐条列给你看。
     link: /zh/tools/
     linkText: 管理 skills、MCP 和 hooks
-  - title: 只读、纯本地
-    details: 原始会话文件永远不会被修改。删除是移进一个可以还原的共享回收站，不是 rm。没有任何数据上传。
-    link: /zh/features/export-and-trash#the-read-only-guarantee
-    linkText: 只读保证
+  - title: 本地浏览历史
+    details: 历史解析、搜索和导出在本地进行。恢复和对话使用配置的 CLI 或服务商；更新、价格和额度功能可能联网。重命名、回收及配置编辑是主动写入操作。
+    link: /zh/guide/privacy
+    linkText: 隐私与数据处理
 ---
+
+## Sessions Viewer 是什么
+
+Sessions Viewer 是免费的 MIT 开源桌面应用，支持 macOS、Windows、Linux，可阅读、搜索、导出本地 coding agent 历史。七种 agent 都能在终端恢复；应用内对话支持 Claude Code 和 Codex。
+
+有具体问题？查看[路径、格式与恢复命令对比](/zh/agents/)、[找不到会话的排障指南](/zh/guide/troubleshooting)或[隐私与联网行为](/zh/guide/privacy)。
+
+## 任务指南与验证依据 {#task-guides}
+
+- [查找、阅读、导出并继续 Claude Code 会话](/zh/guide/claude-code-session-viewer)
+- [定位 Codex rollout 项目并恢复对话](/zh/guide/codex-session-viewer)
+- [复用 skill 与修复链接](/zh/tools/share-skills) · [检查 MCP 配置](/zh/tools/check-mcp)
+- [兼容矩阵与可下载合成样例](/zh/guide/compatibility)
+- [项目身份与文档维护](/zh/guide/about)
 
 ## 各家 agent 的会话记录在哪
 

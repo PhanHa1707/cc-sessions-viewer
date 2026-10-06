@@ -11,7 +11,7 @@ Claude Code はセッションごとに 1 つの JSONL ファイルをホーム�
 ~/.claude/projects/<プロジェクトディレクトリ>/<セッション ID>.jsonl
 ```
 
-`<セッション ID>` は `claude --resume` に渡す UUID そのものです。各プロジェクトディレクトリには、CLI 自身のセッションピッカー用の `sessions-index.json` も置かれます。
+`<セッション ID>` は `claude --resume` に渡す UUID です。一部の CLI バージョンは `sessions-index.json` も管理しますが、Sessions Viewer はそのインデックスなしで JSONL を走査できます。
 
 ## プロジェクトディレクトリ名の作られ方
 
@@ -21,7 +21,7 @@ Claude Code は、プロジェクトの絶対パスに含まれる `/` を先頭
 /Users/me/apps/blog   →   -Users-me-apps-blog
 ```
 
-それ以外は何もエンコードされていないため、置換される文字 1 つだけが異なるパス同士は理論上衝突します。実用上は、ディレクトリ一覧を読むだけでどのフォルダがどのプロジェクトか分かります。
+Windows の区切り文字とドライブのコロンも置換されます（`E:\work\blog` → `E--work-blog`）。名前にダッシュを含む場合は逆変換できません。プロジェクトの確認にはフォルダ名だけでなく、レコードの `cwd` を優先してください。
 
 ## Claude Code のレコードの形
 
@@ -50,11 +50,12 @@ Claude Code は、プロジェクトの絶対パスに含まれる `/` を先頭
 
 ## Claude Code のセッションをターミナルから読む
 
-各メッセージを `ロール: テキスト` の形で出力：
+ユーザーとアシスタントのテキストを抽出（ツールや画像は含みません）：
 
 ```bash
 jq -r 'select(.type=="user" or .type=="assistant")
-  | .message.content[]? | select(.type=="text") | .text' \
+  | .message.content
+  | if type=="string" then . else .[]? | select(.type=="text") | .text end' \
   ~/.claude/projects/-Users-me-apps-blog/<セッション ID>.jsonl
 ```
 
@@ -71,6 +72,20 @@ jq -r '.message.content[]? | select(.type=="tool_use") | .name' \
 grep -l "src/api.ts" ~/.claude/projects/*/*.jsonl
 ```
 
+## セッションを再開するには
+
+Claude Code をインストールし、プロジェクトのディレクトリで `claude --resume SESSION_ID` を実行します。アプリの[ターミナルまたは内蔵チャット](/ja/features/resume)でも再開できます。続行時には設定したプロバイダへの通信や新しい記録の追記が発生する場合があります。
+
+## 根拠と制限
+
+実装：[Claude Code アダプター](https://github.com/jerrywu001/cc-sessions-viewer/blob/22fefc6/src-tauri/src/agents/claude.rs)。上流：[Claude Code ドキュメント](https://code.claude.com/docs/en/overview)。
+
+<!--@include: ../../.vitepress/snippets/reference-ja.md-->
+
+見つからない場合は[確認手順](/ja/guide/troubleshooting)を参照してください。
+
 ## アプリで開く
 
-[Sessions Viewer](/ja/guide/) はこれらのファイルを直接読みます。思考ブロック、ツール呼び出しと結果の対応づけ、`structuredPatch` の diff、インライン画像が当時のとおりに描画され、元ファイルには書き込まず、`⌘⇧F` で全プロジェクトを一度に検索できます。[Codex](/ja/agents/codex)、[Grok Build](/ja/agents/grok-build)、[Kimi Code](/ja/agents/kimi-code)、[Pi](/ja/agents/pi)、[Antigravity CLI](/ja/agents/antigravity-cli)、[opencode](/ja/agents/opencode) にも対応しています。
+手順と手動／GUI の使い分けは [Claude Code の検索・保存・再開](/ja/guide/claude-code-session-viewer)を参照してください。
+
+[Sessions Viewer](/ja/guide/) はこれらのファイルを直接読みます。思考ブロック、ツール呼び出しと結果の対応づけ、`structuredPatch` の diff、インライン画像が当時のとおりに描画され、履歴閲覧は元ファイルを書き換えず、`⌘⇧F` で全プロジェクトを一度に検索できます。[Codex](/ja/agents/codex)、[Grok Build](/ja/agents/grok-build)、[Kimi Code](/ja/agents/kimi-code)、[Pi](/ja/agents/pi)、[Antigravity CLI](/ja/agents/antigravity-cli)、[opencode](/ja/agents/opencode) にも対応しています。

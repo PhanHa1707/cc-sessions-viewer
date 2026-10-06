@@ -1,56 +1,69 @@
 ---
-title: Where coding agents store session history
-description: Where Claude Code, Codex, Grok Build, Kimi Code, Pi, Antigravity CLI and opencode save session transcripts, in what format, and how they group by project.
+title: Coding agent session history — locations, formats and resume commands
+description: Compare where Claude Code, Codex, Grok Build, Kimi Code, Pi, Antigravity CLI and opencode store sessions, how to resume them, and what Sessions Viewer supports.
 ---
 
 # Where coding agents store session history
 
-Every coding agent CLI writes your conversations to disk, and no two of them agree on where, in what shape, or under what name. This page is the reference table. Each agent has its own page with the record format and a command for reading a session by hand.
-
-All paths below are verified against the parsers in [Sessions Viewer](https://github.com/jerrywu001/cc-sessions-viewer), which reads all seven.
+Claude Code and Codex store JSONL under `~/.claude/projects/` and `~/.codex/sessions/`. Pi uses `~/.pi/agent/sessions/`; Grok Build, Kimi Code and Antigravity CLI use session directories. The supported opencode layout uses one SQLite database. The tables below compare the defaults, project metadata and resume commands.
 
 ## Default locations and formats
 
-| Agent | Default location | Format |
+| Agent | Default location | Transcript |
 | --- | --- | --- |
-| [Claude Code](/agents/claude-code) | `~/.claude/projects/` | One JSONL file per session |
-| [Codex](/agents/codex) | `~/.codex/sessions/` | One JSONL file per session, bucketed by date |
-| [Grok Build](/agents/grok-build) | `~/.grok/sessions/` | One directory per session |
-| [Kimi Code](/agents/kimi-code) | `~/.kimi-code/sessions/` | One directory per session |
-| [Pi](/agents/pi) | `~/.pi/agent/sessions/` | One JSONL file per session |
-| [Antigravity CLI](/agents/antigravity-cli) | `~/.gemini/antigravity-cli/brain/` | One directory per conversation |
-| [opencode](/agents/opencode) | `~/.local/share/opencode/opencode.db` | A single SQLite database |
+| [Claude Code](/agents/claude-code) | `~/.claude/projects/` | `<project>/<session-id>.jsonl` |
+| [Codex](/agents/codex) | `~/.codex/sessions/` | `<YYYY>/<MM>/<DD>/rollout-*.jsonl`; archives in `~/.codex/archived_sessions/` |
+| [Grok Build](/agents/grok-build) | `~/.grok/sessions/` | `<group>/<session-id>/updates.jsonl` |
+| [Kimi Code](/agents/kimi-code) | `~/.kimi-code/sessions/` | `<group>/<session-id>/agents/main/wire.jsonl` |
+| [Pi](/agents/pi) | `~/.pi/agent/sessions/` | `<project>/<timestamp>_<uuid>.jsonl` |
+| [Antigravity CLI](/agents/antigravity-cli) | `~/.gemini/antigravity-cli/brain/` | `<uuid>/.system_generated/logs/transcript*.jsonl` |
+| [opencode](/agents/opencode) | `~/.local/share/opencode/opencode.db` | SQLite: `session` → `message` → `part` |
 
-## How each agent decides which project a session belongs to
+## How can I resume a session? {#resume-commands}
 
-Some agents encode the working directory into the path, so you can tell at a glance. Others record it inside the file, which means you cannot group sessions by project without opening every one.
+Run from the original project directory with the corresponding CLI installed and configured. Replace `SESSION_ID`, `CONVERSATION_ID` or the path; these commands start the CLI and can make provider requests or write data.
 
-| Agent | Project comes from |
+| Agent | Terminal command | In-app chat |
+| --- | --- | --- |
+| Claude Code | `claude --resume SESSION_ID` | Yes |
+| Codex | `codex resume SESSION_ID` | Yes |
+| Grok Build | `grok --resume SESSION_ID` | No |
+| Kimi Code | `kimi --session SESSION_ID` | No |
+| Pi | `pi --session "/absolute/path/to/session.jsonl"` | No |
+| Antigravity CLI | `agy --conversation CONVERSATION_ID` | No |
+| opencode | `opencode --session SESSION_ID` | No |
+
+All seven have history browsing/search, export and terminal resume in Sessions Viewer. Statistics depend on recorded usage: Antigravity CLI's supported transcript has no usage fields. See [resuming sessions](/features/resume) and [exporting sessions](/features/export-and-trash).
+
+## Where does the project identity come from?
+
+| Agent | Metadata used by the viewer |
 | --- | --- |
-| Claude Code | The directory name: the absolute path with `/` replaced by `-` |
-| Codex | The `cwd` field inside each file. The path only tells you the date |
-| Grok Build | `summary.json` → `info.cwd` |
-| Kimi Code | The `wd_<name>_<hash>` group directory |
-| Pi | The directory name: the absolute path wrapped in `--` |
-| Antigravity CLI | The `workspace` field in `history.jsonl` |
-| opencode | The `project` table, joined on `session.project_id` |
+| Claude Code | JSONL `cwd`; encoded folder name is a fallback, not a reversible path |
+| Codex | `session_meta.payload.cwd` |
+| Grok Build | `summary.json` → `info.cwd`, with group-directory fallbacks |
+| Kimi Code | Session metadata / index; `state.json.cwd` identifies the working directory |
+| Pi | `cwd` in the first `session` record |
+| Antigravity CLI | `history.jsonl` → `workspace` |
+| opencode | `project` table joined by `session.project_id` |
 
-## Environment variables that move the data root
+## Which custom roots does the viewer discover?
 
-These agents let you move their data root:
+| Agent | Recognized override |
+| --- | --- |
+| Grok Build | `GROK_HOME` (default `~/.grok`) |
+| Kimi Code | `KIMI_CODE_HOME` (default `~/.kimi-code`) |
+| Pi | `PI_CODING_AGENT_SESSION_DIR`, then `settings.json.sessionDir`, then `<PI_CODING_AGENT_DIR>/sessions` |
+| opencode | `XDG_DATA_HOME` (default `~/.local/share`) |
 
-```bash
-GROK_HOME=/path/to/dir              # Grok Build, default ~/.grok
-KIMI_CODE_HOME=/path/to/dir         # Kimi Code, default ~/.kimi-code
-PI_CODING_AGENT_DIR=/path/to/dir    # Pi, default ~/.pi/agent
-PI_CODING_AGENT_SESSION_DIR=/path   # Pi session root specifically
-XDG_DATA_HOME=/path/to/dir          # opencode reads $XDG_DATA_HOME/opencode
-```
+The current Claude Code, Codex and Antigravity adapters read fixed locations under the home directory. This is a **viewer limitation**, not a claim that those CLIs cannot use other roots. Environment variables in your shell may not reach a desktop app launched from Finder or a shortcut. Follow the [missing-session checklist](/guide/troubleshooting) before moving files.
 
-Claude Code, Codex and Antigravity CLI have no equivalent override in the layouts read here. Their roots are fixed under your home directory.
+## Read a transcript without the app
 
-## Reading a transcript without an app
+Each agent's reference page includes `jq` or read-only `sqlite3` examples. They extract selected fields, not every image, tool result or branch. Use [Sessions Viewer](/guide/) for a searchable view, or [download the app](/guide/install).
 
-Every agent's page has a `jq` or `sqlite3` one-liner that prints a readable transcript. They are worth knowing: when an agent misbehaves, the file on disk is the only record of what actually happened.
+## Evidence and scope
 
-If you would rather not do that every time, [Sessions Viewer](/guide/) reads all seven into one searchable view, pairs tool calls with their results, renders structured diffs and inline images, and never writes to the original files.
+Path and resume information was checked against the [agent adapters at source revision 22fefc6](https://github.com/jerrywu001/cc-sessions-viewer/tree/22fefc6/src-tauri/src/agents). Each reference page links its own adapter and, where identified, an upstream entry point.
+
+<!--@include: ../.vitepress/snippets/reference-en.md-->

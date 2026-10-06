@@ -7,9 +7,12 @@
   "scripts": {
     "sync-assets": "node scripts/sync-assets.mjs",
     "dev": "npm run sync-assets && vitepress dev",
-    "build": "npm run sync-assets && vitepress build && npm run check-anchors",
+    "build": "npm run sync-assets && vitepress build && npm run check-anchors && npm run check-seo",
     "preview": "vitepress preview",
-    "check-anchors": "node scripts/check-anchors.mjs"
+    "check-anchors": "node scripts/check-anchors.mjs",
+    "check-seo": "node scripts/check-seo.mjs",
+    "test": "node --test scripts/tests/*.test.mjs",
+    "indexnow": "node scripts/indexnow.mjs"
   },
   "devDependencies": {
     "vitepress": "1.6.4"

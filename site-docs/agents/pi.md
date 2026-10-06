@@ -1,11 +1,11 @@
 ---
 title: Where Pi stores session history
-description: Pi writes append-only JSONL under ~/.pi/agent/sessions/ with the project path in the directory name. How the session root resolves, plus read commands.
+description: Pi stores JSONL sessions under ~/.pi/agent/sessions/ by default. Find the configured root, extract nested message text and resume by file path.
 ---
 
 # Where Pi stores session history
 
-Pi writes one append-only JSONL file per session:
+Pi's default session root is `~/.pi/agent/sessions/`. Each session is a JSONL file with a `session` header and message/tree entries:
 
 ```
 <session root>/--<encoded-project-path>--/<timestamp>_<uuid>.jsonl
@@ -29,7 +29,7 @@ Pi's root is configurable in three places, in this order of precedence:
 
 The agent directory itself is `PI_CODING_AGENT_DIR`, defaulting to `~/.pi/agent`. So with nothing configured, sessions live at `~/.pi/agent/sessions`.
 
-A one-shot `--session-dir` flag on the command line writes somewhere else, but Pi does not index those, so nothing can discover them afterwards. If you want a session to be findable later, set the root rather than passing the flag.
+A one-shot `--session-dir` can write outside the root scanned by Sessions Viewer. Those files may exist but not appear in the app. Align the configured root; do not assume an unlisted file has been deleted.
 
 ## The project directory name
 
@@ -39,7 +39,7 @@ The absolute project path with `/` replaced by `-`, wrapped in a leading and tra
 /Users/me/apps/blog   →   --Users-me-apps-blog--
 ```
 
-The wrapping dashes are what distinguish it from a directory that happens to contain dashes, so you can group sessions by project straight from the listing.
+The directory name is a useful hint, not a reversible encoding. The `cwd` in the file's first `session` record is the adapter's source for the project.
 
 ## What else lives in the agent directory
 
@@ -54,14 +54,16 @@ The wrapping dashes are what distinguish it from a directory that happens to con
 └── auth.json            ← credentials, do not read this
 ```
 
-Anything reading Pi's data should stay inside `sessions/`. The sibling files hold authentication, model and trust configuration.
+To read conversation history, inspect the session files rather than credential files. Sessions Viewer also reads `settings.json` to resolve a custom session root; tool management is a separate feature.
 
 ## Reading a Pi session from the terminal
 
-Print the conversation:
+Extract stored user/assistant text (all stored branches, not only the active one):
 
 ```bash
-jq -r 'select(.type) | .text // .content // empty' \
+jq -r 'select(.type=="message") | .message
+  | select(.role=="user" or .role=="assistant") | .content
+  | if type=="string" then . else .[]? | select(.type=="text") | .text end' \
   ~/.pi/agent/sessions/--Users-me-apps-blog--/*.jsonl
 ```
 
@@ -78,6 +80,18 @@ for d in ~/.pi/agent/sessions/*/; do
   printf '%4d  %s\n' "$(ls "$d"*.jsonl 2>/dev/null | wc -l)" "$(basename "$d")"
 done | sort -rn
 ```
+
+## How do I resume this session?
+
+Run `pi --session "/absolute/path/to/session.jsonl"` from the project's directory with Pi installed. Pi resume uses the **file path**, not just the UUID. The app offers [terminal resume](/features/resume), not in-app Pi chat.
+
+## Source and limitations
+
+Implementation: [Pi adapter](https://github.com/jerrywu001/cc-sessions-viewer/blob/22fefc6/src-tauri/src/agents/pi.rs). Upstream: [Pi documentation](https://pi.dev/).
+
+<!--@include: ../.vitepress/snippets/reference-en.md-->
+
+Pi stores branches through entry IDs and parent IDs. The one-liner above reads stored text in file order; it is not an active-branch renderer. See [missing-session troubleshooting](/guide/troubleshooting).
 
 ## Or open it in an app
 

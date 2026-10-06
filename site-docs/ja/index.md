@@ -1,6 +1,6 @@
 ---
 layout: home
-title: Claude Code・Codex・opencode のセッション履歴ビューア
+title: Sessions Viewer — Claude Code・Codex・opencode の履歴ビューア
 titleTemplate: false
 description: Claude Code、Codex、Grok Build、Kimi Code、Pi、Antigravity CLI、opencode のローカルセッション履歴を読み、検索し、再開できる無料のデスクトップアプリ。
 
@@ -37,18 +37,32 @@ features:
     link: /ja/features/project-editor
     linkText: プロジェクトエディターのガイド
   - title: トークンとコストの統計
-    details: models.dev のライブ価格をもとに、プロジェクト・モデル・ツール別に集計します。macOS のメニューバーにはエージェントごとの今日・7 日・30 日の合計が出ます。
+    details: キャッシュした models.dev 価格で記録済み使用量と推定コストを集計します。請求書ではありません。macOS には使用量がある今日・7 日・30 日の合計を表示します。
     link: /ja/features/stats
     linkText: 統計
   - title: ツール管理
     details: 7 つのエージェントの skills・MCP サーバー・hooks・指示ファイルをひとつのパネルに。重複した skill や切れたリンクを見つけ出し、書き込む前に変更されるファイルを必ず提示します。
     link: /ja/tools/
     linkText: skills・MCP・hooks の管理
-  - title: 読み取り専用・ローカル完結
-    details: 元のセッションファイルは一切変更しません。削除は復元できる共有ゴミ箱への移動で、どこにもアップロードされません。
-    link: /ja/features/export-and-trash#the-read-only-guarantee
-    linkText: 読み取り専用の保証
+  - title: ローカルで履歴を閲覧
+    details: 履歴の解析・検索・エクスポートはローカル処理です。再開やチャットは設定した CLI／プロバイダを使い、更新・価格・利用枠も通信する場合があります。リネーム、ゴミ箱、設定編集は明示的な書き込みです。
+    link: /ja/guide/privacy
+    linkText: プライバシーとデータの扱い
 ---
+
+## Sessions Viewer とは
+
+Sessions Viewer は macOS、Windows、Linux 向けの無料 MIT オープンソースアプリです。ローカルのコーディングエージェント履歴を閲覧・検索・エクスポートでき、7 つともターミナルで再開できます。アプリ内チャットは Claude Code と Codex に対応します。
+
+[保存先・形式・再開方法の比較](/ja/agents/)、[見つからない履歴の確認手順](/ja/guide/troubleshooting)、[通信とプライバシー](/ja/guide/privacy)から目的に合うページへ進めます。
+
+## 目的別の手順と根拠 {#task-guides}
+
+- [Claude Code 履歴の検索・閲覧・保存・続行](/ja/guide/claude-code-session-viewer)
+- [Codex rollout のプロジェクト特定と再開](/ja/guide/codex-session-viewer)
+- [スキル共有とリンク修復](/ja/tools/share-skills) · [MCP 設定確認](/ja/tools/check-mcp)
+- [対応表とダウンロード可能な合成例](/ja/guide/compatibility)
+- [プロジェクトと文書の保守](/ja/guide/about)
 
 ## 各エージェントのセッションの保存場所
 

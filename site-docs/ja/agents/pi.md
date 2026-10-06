@@ -1,11 +1,11 @@
 ---
 title: Pi のセッション履歴の保存場所
-description: Pi は ~/.pi/agent/sessions/ 配下に追記専用の JSONL を書き出し、プロジェクトのパスをディレクトリ名にエンコードします。セッションルートの解決順、ファイル名、セッションを読むコマンド。
+description: Pi は既定で ~/.pi/agent/sessions/ に JSONL を保存します。保存先の優先順、ネストした本文の抽出、ファイルパスによる再開を説明します。
 ---
 
 # Pi のセッション履歴の保存場所
 
-Pi はセッションごとに追記専用（append-only）の JSONL ファイルを 1 つ書き出します：
+Pi の既定の保存先は `~/.pi/agent/sessions/` です。セッションごとに JSONL ファイルを作り、`session` ヘッダーとメッセージ／ツリーのエントリを保存します：
 
 ```
 <セッションルート>/--<エンコードされたプロジェクトパス>--/<タイムスタンプ>_<uuid>.jsonl
@@ -29,7 +29,7 @@ Pi のルートは 3 か所で設定でき、優先順位は次のとおりで�
 
 agent ディレクトリ自体は `PI_CODING_AGENT_DIR` で指定し、既定値は `~/.pi/agent` です。何も設定しなければセッションは `~/.pi/agent/sessions` に入ります。
 
-コマンドラインの一回限りの `--session-dir` は別の場所へ書き込みますが、Pi はそれをインデックス化しないため、あとから発見できるものは何もありません。あとで見つけられるようにしたいなら、このフラグではなくルートのほうを設定してください。
+一回限りの `--session-dir` は Sessions Viewer の走査範囲外に書き込む場合があります。一覧に出なくてもファイルが存在する可能性があります。保存先の設定を合わせ、未検出を削除と取り違えないでください。
 
 ## プロジェクトディレクトリ名
 
@@ -39,7 +39,7 @@ agent ディレクトリ自体は `PI_CODING_AGENT_DIR` で指定し、既定値
 /Users/me/apps/blog   →   --Users-me-apps-blog--
 ```
 
-前後のダッシュは、名前にもともとダッシュを含むディレクトリと区別するためのもので、一覧からそのままプロジェクト別にまとめられます。
+ディレクトリ名は手がかりですが、逆変換できるとは限りません。アダプターは先頭の `session` レコードの `cwd` をプロジェクトの根拠として使います。
 
 ## agent ディレクトリのその他の中身
 
@@ -54,14 +54,16 @@ agent ディレクトリ自体は `PI_CODING_AGENT_DIR` で指定し、既定値
 └── auth.json            ← 認証情報。読まないこと
 ```
 
-Pi のデータを読むものは `sessions/` の中だけに留まるべきです。隣にあるファイルには認証・モデル・信頼設定が入っています。
+履歴の確認には認証ファイルではなくセッションファイルを使ってください。Sessions Viewer は保存先の解決のために `settings.json` も読みます。ツール管理は別の機能です。
 
 ## Pi のセッションをターミナルから読む
 
-会話を出力：
+保存済みのユーザー／アシスタントのテキストを抽出（現在以外の分岐も含みます）：
 
 ```bash
-jq -r 'select(.type) | .text // .content // empty' \
+jq -r 'select(.type=="message") | .message
+  | select(.role=="user" or .role=="assistant") | .content
+  | if type=="string" then . else .[]? | select(.type=="text") | .text end' \
   ~/.pi/agent/sessions/--Users-me-apps-blog--/*.jsonl
 ```
 
@@ -78,6 +80,18 @@ for d in ~/.pi/agent/sessions/*/; do
   printf '%4d  %s\n' "$(ls "$d"*.jsonl 2>/dev/null | wc -l)" "$(basename "$d")"
 done | sort -rn
 ```
+
+## セッションを再開するには
+
+Pi をインストールし、プロジェクトのディレクトリで `pi --session "/absolute/path/to/session.jsonl"` を実行します。指定するのは UUID だけではなく**ファイルのパス**です。アプリは[ターミナルでの再開](/ja/features/resume)に対応し、Pi の内蔵チャットには対応していません。
+
+## 根拠と制限
+
+実装：[Pi アダプター](https://github.com/jerrywu001/cc-sessions-viewer/blob/22fefc6/src-tauri/src/agents/pi.rs)。上流：[Pi ドキュメント入口](https://pi.dev/)。
+
+<!--@include: ../../.vitepress/snippets/reference-ja.md-->
+
+Pi はエントリ ID と親 ID で分岐を保存します。上のコマンドは保存テキストをファイル順に読み、現在の分岐を再構成しません。[確認手順](/ja/guide/troubleshooting)を参照してください。
 
 ## アプリで開く
 

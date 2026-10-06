@@ -22,6 +22,12 @@ export const ja: Locale = {
         items: [
           { text: '概要', link: '/ja/guide/' },
           { text: 'インストール', link: '/ja/guide/install' },
+          { text: '履歴が見つからない場合', link: '/ja/guide/troubleshooting' },
+          { text: 'プライバシーとデータの扱い', link: '/ja/guide/privacy' },
+        { text: 'Claude Code の使い方', link: '/ja/guide/claude-code-session-viewer' },
+        { text: 'Codex の使い方', link: '/ja/guide/codex-session-viewer' },
+        { text: '対応範囲とサンプル', link: '/ja/guide/compatibility' },
+        { text: 'プロジェクトと保守', link: '/ja/guide/about' },
         ],
       },
       {
@@ -43,7 +49,11 @@ export const ja: Locale = {
       },
       {
         text: 'ツール管理',
-        items: [{ text: '全体像', link: '/ja/tools/' }],
+        items: [
+        { text: '全体像', link: '/ja/tools/' },
+        { text: 'スキル共有とリンク修復', link: '/ja/tools/share-skills' },
+        { text: 'MCP 設定の確認', link: '/ja/tools/check-mcp' },
+      ],
       },
       {
         text: 'セッションの保存場所',

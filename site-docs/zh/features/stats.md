@@ -1,42 +1,50 @@
 ---
-title: Token 与成本统计
-description: Claude Code、Codex 等七种 agent 的 token 用量和花费，按项目、模型、工具拆开，价格取自 models.dev 实时数据，macOS 菜单栏显示今日 / 7 天 / 30 天。
+title: Coding agent Token 用量与估算成本统计
+description: 区分 Claude Code、Codex 等 agent 的已记录用量、模型价格估算、opencode 记录成本、缺失字段和订阅额度，不把统计当成账单。
 image: /screenshots/stats.png
 ---
 
-# Token 与成本统计
+# Token 用量与估算成本
 
-![Sessions Viewer 的 token 与成本分析，按项目和模型拆开](/screenshots/stats.png)
+Sessions Viewer 汇总的是**已记录用量**，不是服务商账单。按 `⌘⇧S` 打开统计，可对比项目、模型、工具和时间。缺少用量字段不代表免费：此处支持的 Antigravity CLI 格式没有 Token 字段。
 
-每种 agent 都会在自己的记录里报 token 用量，但没有一个会告诉你所有 agent 加起来是多少。`⌘⇧S` 打开统计视图，它读遍磁盘上的所有会话再汇总。
+![按项目和模型拆分的用量与成本统计](/screenshots/stats.png)
 
-## 按什么拆
+## 可以对比什么 {#usage-breakdown}
 
-- 项目：哪个仓库在真正烧钱
-- 模型：花费落在你用的哪些模型上
-- 工具：哪些工具被调用、调用了多少次
-- 时间：今日、最近 7 天、最近 30 天
+- 项目和模型：已记录 Token 与估算支出集中在哪里。
+- 工具：调用了哪些工具、调用次数。
+- 时间：今日、近 7 天、近 30 天。
+- Agent：全部来源或单独一种。
 
-可以看全部 agent，也可以只看某一个。
+覆盖范围取决于文件记录了什么、适配器识别什么。跨 agent 比较前先看[兼容范围与验证矩阵](/zh/guide/compatibility)。
 
-## 价格从哪来
+## 价格来自哪里 {#price-source}
 
-价格取自 [models.dev](https://models.dev)（一个开源的模型目录），本地缓存 24 小时。
+应用先从 [js-bridge 镜像](https://www.js-bridge.com/api/models)获取 models.dev 格式目录，失败时回退到 [models.dev](https://models.dev/api.json)，本地缓存 24 小时。这是获取价格目录的联网请求，不需要发送会话正文。
 
-选 models.dev 而不是 LiteLLM 的价目表，原因是收录速度。那份表靠 PR 驱动，新发布的模型可能好几天都没有条目。Fable 5 发布当天 models.dev 已经收录，LiteLLM 还没有。缺条目意味着那部分会话在总额里悄无声息地算成零，这比价格稍微陈旧糟糕得多。
+![应用中的模型价格表](/screenshots/model-price.png)
 
-![Sessions Viewer 内置的实时模型价目表](/screenshots/model-price.png)
+可以在价格表核查已知费率。部分计算路径遇到未知模型 ID 会采用回退估算；缺失的缓存费率和无法识别的服务商定价需谨慎看待。缺字段或价格不能证明用量或实际成本为零。
 
-完整价目表在应用里可以直接翻，所以你能看到某个模型是按什么价算的，而不是面对一个不知道哪来的数字。
+## 显示的成本就是账单吗 {#cost-vs-bill}
 
-### 价目表不够用的地方
+不是。目录估算不一定覆盖协议价、路由加价、折扣、订阅费、工具或其他收费，缓存与模型匹配也会影响结果。财务核对应以服务商实际用量报告和账单为准。
 
-opencode 可以挂任意 provider，所以模型名推不出价格。那类会话改用 opencode 自己库里逐条消息记着的成本，见 [opencode 那页](/zh/agents/opencode#cost-from-db)。Antigravity CLI 的记录里根本没有 token 字段，所以它不贡献任何用量数字。
+opencode 不同：查看器使用数据库中记录的成本，并计入子 agent 工作。记录成本仍不是独立核验后的账单，详见 [opencode 成本来源](/zh/agents/opencode#cost-from-db)。
 
-## 菜单栏
+支持的 Antigravity CLI 格式不贡献 Token 用量。其他 agent 也需要保存用量字段；只有正文的合成示例不能证明成本统计正确。
 
-macOS 上菜单栏显示各 agent 的今日 / 7 天 / 30 天读数，让这个数字出现在你真的会看到的地方，而不是藏在一个要主动打开的窗口后面。
+## 订阅额度与成本有什么不同 {#subscription-quota}
 
-## 额度徽标
+Claude、Codex 的订阅账户可能在输入框旁显示额度窗口，是否可用取决于账户、认证方式和服务商返回的窗口。API key 账户没有相同的订阅额度徽章。
 
-用订阅账号登录的 Claude 和 Codex 会话，会在输入框旁边显示 5 小时和周额度的剩余比例，随着你干活刷新。用第三方 API key 认证的会话没有这种额度窗口，所以不显示徽标。
+剩余额度不等于按 Token 价格计算的支出。刷新额度可能访问已认证的服务商／CLI 服务，见[隐私与联网行为](/zh/guide/privacy)。
+
+## macOS 菜单栏
+
+菜单栏显示各 agent 的今日、7 天、30 天汇总，适用与统计页相同的用量覆盖及成本限制。
+
+## 依据
+
+2026-10-05 对照 Sessions Viewer 0.6.0 的[价格实现](https://github.com/jerrywu001/cc-sessions-viewer/blob/22fefc6/src-tauri/src/stats/pricing.rs)与[统计适配器](https://github.com/jerrywu001/cc-sessions-viewer/tree/22fefc6/src-tauri/src/stats)核对。这是实现说明，不是账单审计。

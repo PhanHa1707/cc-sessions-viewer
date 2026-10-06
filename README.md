@@ -26,7 +26,7 @@ https://github.com/user-attachments/assets/9bcb92a8-e5b8-40e5-b492-af252162309b
 Sessions Viewer turns local agent transcripts into a searchable workspace. Open a project, inspect exactly what happened, then continue the work from the same place without manually hunting through JSONL files.
 
 > [!TIP]
-> **New — Tool management.** Skills, MCP servers, hooks, and instruction files for all seven agents in one place. Find the duplicate skills and broken links on your machine and repair them, see what your MCP servers cost in context before you type, and dry-run a hook before you trust it. Every change previews the exact file edits first.
+> **New — Tool management.** Skills, MCP servers, hooks, and instruction files for all seven agents in one place. Find the duplicate skills and broken links on your machine and repair them, inspect cached MCP context estimates, and preview file edits. Review hook commands before testing: a dry-run executes the script, not a sandbox.
 >
 > → **[Read the tool management guide](https://sessions-viewer.js-bridge.com/tools/)**
 
@@ -41,7 +41,7 @@ Sessions Viewer turns local agent transcripts into a searchable workspace. Open 
 
 - **Built-in chat** — start or resume Claude Code and Codex sessions with model, reasoning-effort (including Opus **Ultracode**), and permission-mode controls.
 - **One-click resume** — open a session in an embedded terminal or in **Terminal.app**, **cmux**, **iTerm2**, **Ghostty**, or **Warp**.
-- **Shell tabs** — run regular shell commands beside agent sessions; tabs persist across restarts.
+- **Shell tabs** — run regular shell commands beside agent sessions. Restart can restore tab titles/directories with a new shell, not the previous process or running command.
 - **Launch arguments** — configure per-agent CLI flags such as `--dangerously-skip-permissions` for new and resumed sessions.
 
 ### Keep projects organized
@@ -53,15 +53,19 @@ Sessions Viewer turns local agent transcripts into a searchable workspace. Open 
 
 ### Understand usage and share results
 
-- **Stats and pricing** — inspect token spend and cost by project, model, or tool using live pricing from models.dev; macOS menu bar stats show Today / 7d / 30d totals per agent.
-- **Flexible export** — export one session or a batch as offline-readable Markdown, HTML, or lossless JSON.
-- **Read-only safety** — source JSONL files are never modified or removed.
+- **Stats and pricing** — inspect recorded token usage and estimated cost by project, model, or tool using cached models.dev prices; macOS menu bar stats show Today / 7d / 30d totals where usage is available. Estimates are not provider invoices.
+- **Flexible export** — save Markdown, HTML, or parsed-message JSON. Remote or unreadable local images may remain linked; keep native files for a complete backup.
+- **Read-only browsing** — reading, searching and exporting do not rewrite source transcripts. Rename, trash/restore, continuation and editing are separate write operations.
+
+History processing is local; the whole app is not network-free. Online chat/resume uses your configured CLI/provider, and updates, prices and quota features can make requests. See [privacy and data handling](https://sessions-viewer.js-bridge.com/guide/privacy).
 
 ### Supported session sources
 
-Claude Code, Codex, Grok Build, Kimi Code, Pi, Antigravity CLI, and opencode. Grok Build, Kimi Code, and Pi provide history, terminal, export, analysis, and resume workflows; their GUI chat is intentionally not included.
+Claude Code, Codex, Grok Build, Kimi Code, Pi, Antigravity CLI, and opencode. All seven provide history, search, export and terminal resume. In-app chat is available only for Claude Code and Codex. Usage statistics depend on recorded fields; the supported Antigravity transcript has none.
 
 Where each one stores its sessions on disk, with commands for reading a transcript by hand, is documented at [sessions-viewer.js-bridge.com/agents/](https://sessions-viewer.js-bridge.com/agents/).
+
+Task guides: [Claude Code history](https://sessions-viewer.js-bridge.com/guide/claude-code-session-viewer) · [Codex rollouts](https://sessions-viewer.js-bridge.com/guide/codex-session-viewer) · [compatibility and synthetic samples](https://sessions-viewer.js-bridge.com/guide/compatibility) · [project and maintenance](https://sessions-viewer.js-bridge.com/guide/about).
 
 ## Screenshots
 
@@ -146,7 +150,8 @@ Grab the latest installer from [Releases](https://github.com/jerrywu001/cc-sessi
 > [!IMPORTANT]
 > **macOS: this build is not notarized.** It is ad-hoc signed, so Gatekeeper blocks the
 > first launch with *"Apple could not verify 'Sessions Viewer' is free of malware."*
-> That is what an unsigned open-source build looks like, not a sign something is wrong.
+> Apple has not verified this build; the warning does not prove the download is safe.
+> Only proceed if you deliberately obtained and trust the installer from this project's Releases.
 >
 > **macOS 15 Sequoia and later** — Control-click → Open no longer works, Apple removed
 > that bypass:
@@ -158,11 +163,12 @@ Grab the latest installer from [Releases](https://github.com/jerrywu001/cc-sessi
 > **macOS 14 Sonoma and earlier** — Control-click (right-click) the app in Finder →
 > **Open** → **Open** in the dialog. Once is enough.
 >
-> **Either version, from Terminal:**
+> **From Terminal, only for a trusted download:** this removes the quarantine attribute
+> and bypasses that Gatekeeper check. Prefer the System Settings flow above.
 > ```bash
 > xattr -dr com.apple.quarantine "/Applications/Sessions Viewer.app"
 > ```
-> Prefix with `sudo` if it reports `Operation not permitted`.
+> If it reports `Operation not permitted`, check ownership and installation location instead of blindly elevating permissions.
 
 On Linux the `.AppImage` is portable — `chmod +x` and run. The `.deb` installs with:
 ```bash
@@ -179,7 +185,7 @@ npm run tauri dev      # dev mode
 npm run tauri build    # bundle
 ```
 
-Prereqs: Node 20+, Rust stable. See [`CLAUDE.md`](CLAUDE.md) for architecture notes.
+Prereqs: latest Node 22, Rust stable. See [`CLAUDE.md`](CLAUDE.md) for architecture notes.
 
 ## Contributing
 

@@ -1,0 +1,99 @@
+{
+  "scope": "Synthetic offline parser projections, not CLI end-to-end certification. Tool arguments are parsed data, never executed.",
+  "claude-code": [
+    {
+      "role": "user",
+      "blocks": [
+        {
+          "kind": "text",
+          "text": "Question"
+        }
+      ]
+    },
+    {
+      "role": "assistant",
+      "blocks": [
+        {
+          "kind": "thinking",
+          "text": "Hidden"
+        },
+        {
+          "kind": "text",
+          "text": "Answer"
+        },
+        {
+          "kind": "tool_use",
+          "toolName": "Read",
+          "toolId": "tool-synthetic",
+          "toolInput": {
+            "file_path": "synthetic.txt"
+          }
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "blocks": [
+        {
+          "kind": "tool_result",
+          "text": "Synthetic tool output",
+          "toolId": "tool-synthetic",
+          "isError": false
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "blocks": [
+        {
+          "kind": "text",
+          "text": "Legacy string"
+        }
+      ]
+    }
+  ],
+  "codex": [
+    {
+      "role": "user",
+      "blocks": [
+        {
+          "kind": "text",
+          "text": "Question"
+        }
+      ]
+    },
+    {
+      "role": "assistant",
+      "blocks": [
+        {
+          "kind": "tool_use",
+          "toolName": "exec_command",
+          "toolId": "call-synthetic",
+          "toolInput": {
+            "command": "echo synthetic"
+          }
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "blocks": [
+        {
+          "kind": "tool_result",
+          "text": "Synthetic tool output",
+          "toolId": "call-synthetic",
+          "isError": false
+        }
+      ]
+    },
+    {
+      "role": "assistant",
+      "blocks": [
+        {
+          "kind": "text",
+          "text": "Answer"
+        }
+      ]
+    }
+  ]
+}

@@ -5,7 +5,7 @@ description: opencode は JSONL を使いません。すべてのセッション
 
 # opencode のセッション履歴の保存場所
 
-opencode は 7 つの中で異質です。他のエージェントは `grep` できる JSONL を書きます。opencode はすべてを単一の SQLite データベースに入れます：
+ここで対応する opencode の形式は、SQLite データベース `~/.local/share/opencode/opencode.db` にセッションを保存します。設定時は `$XDG_DATA_HOME/opencode/opencode.db` を使います：
 
 ```
 ~/.local/share/opencode/opencode.db
@@ -81,6 +81,18 @@ GROUP BY p.worktree ORDER BY usd DESC;
 ## コストをデータベースから取る理由 {#cost-from-db}
 
 opencode は任意のプロバイダを指せます。DeepSeek、OpenRouter、ローカルモデル、何でもです。モデル名を引く価格表では実際の呼び出しコストを再構成できないため、assistant メッセージごとに記録された実際の `modelID` と `cost` だけが信頼できる情報源です。
+
+## セッションを再開するには
+
+opencode をインストールし、プロジェクトのディレクトリで `opencode --session SESSION_ID` を実行します。アプリは[ターミナルでの再開](/ja/features/resume)に対応し、opencode の内蔵チャットには対応していません。
+
+## 根拠と制限
+
+実装：[opencode アダプター](https://github.com/jerrywu001/cc-sessions-viewer/blob/22fefc6/src-tauri/src/agents/opencode.rs)。上流：[opencode ドキュメント](https://opencode.ai/docs/)。
+
+<!--@include: ../../.vitepress/snippets/reference-ja.md-->
+
+SQL 例は上記スキーマを対象にし、旧ファイル形式は扱いません。読み取り専用の照会と、明示的なリネーム・ゴミ箱移動・復元による書き込みは別です。[確認手順](/ja/guide/troubleshooting)を参照してください。
 
 ## アプリで開く
 

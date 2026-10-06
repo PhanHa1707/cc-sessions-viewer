@@ -8,7 +8,19 @@ description: Claude Code、Codex ほか 5 つのコーディングエージェ�
 Sessions Viewer は、コーディングエージェントの CLI がディスクに残す記録を読み込み、ひとつのワークスペースとして表示します。プロジェクトを開き、セッションで何が起きたかを正確に確かめ、同じ場所から作業を続けられます。JSONL ファイルを手作業で探す必要はありません。
 
 > [!TIP]
-> **ツール管理**はこのアプリの最も新しい部分です。7 つのエージェントの skill・MCP サーバー・hook・指示ファイルを 1 つの画面にまとめます。マシン上の重複した skill や切れたリンクを見つけて修復し、入力を始める前に MCP サーバーがコンテキストをどれだけ消費しているかを確認し、hook は信頼する前に試し実行できます。すべての変更は、書き換わるファイルを先に提示します。[ツール管理ガイドを読む](/ja/tools/)。
+> **ツール管理**はこのアプリの最も新しい部分です。7 つのエージェントの skill・MCP サーバー・hook・指示ファイルを 1 つの画面にまとめます。マシン上の重複した skill や切れたリンクを見つけて修復し、キャッシュに基づく MCP 文脈推定とファイル変更を確認できます。Hook のテスト前にはコマンドを読みます。dry-run は実際にスクリプトを実行し、サンドボックスではありません。[ツール管理ガイドを読む](/ja/tools/)。
+
+## 目的から探す
+
+- [保存先と再開方法](/ja/agents/)
+- [履歴が見つからない場合](/ja/guide/troubleshooting)
+- [ローカル処理と通信の違い](/ja/guide/privacy)
+- [インストール](/ja/guide/install)
+- [Claude Code の履歴を探して続ける](/ja/guide/claude-code-session-viewer)
+- [Codex rollout を特定して再開する](/ja/guide/codex-session-viewer)
+- [対応形式・検証範囲とサンプル](/ja/guide/compatibility)
+- [スキル共有と MCP 設定確認](/ja/tools/share-skills)
+- [プロジェクトと文書の保守](/ja/guide/about)
 
 ## 読む・探す
 
@@ -20,7 +32,7 @@ Sessions Viewer は、コーディングエージェントの CLI がディス�
 
 Claude Code と Codex のセッションは[内蔵チャット](/ja/features/resume)で続けられます。モデル、推論の強さ（Opus Ultracode を含む）、権限モードはその場で切り替えられます。どのセッションも、内蔵ターミナルまたは Terminal.app、cmux、iTerm2、Ghostty、Warp でワンクリックで再開できます。
 
-シェルタブはエージェントセッションの横で通常のコマンドを実行でき、再起動後も保持されます。`--dangerously-skip-permissions` のような起動引数はエージェントごとに設定でき、新規・再開のセッションに自動で追加されます。
+シェルタブは agent の横で通常のコマンドを実行できます。再起動後にタイトル／ディレクトリは復元できますが、新しいシェルとなり、以前の実行中のコマンドは復元しません。`--dangerously-skip-permissions` のような起動引数はエージェントごとに設定でき、新規・再開のセッションに自動で追加されます。
 
 ## プロジェクトを整理する
 
@@ -30,10 +42,10 @@ Claude Code と Codex のセッションは[内蔵チャット](/ja/features/res
 
 ## 利用状況を把握・共有する
 
-[統計ビュー](/ja/features/stats)は、models.dev のライブ価格をもとに、トークン消費とコストをプロジェクト・モデル・ツール別に分解します。macOS のメニューバーにはエージェントごとの今日・7 日・30 日の合計が表示されます。
+[統計ビュー](/ja/features/stats)は、キャッシュした models.dev 価格で記録済み使用量と推定コストを集計します。請求書ではありません。対応する Antigravity に使用量はなく、macOS の表示は使用量がある今日・7 日・30 日の合計です。
 
-1 つのセッションでも複数でも、オフラインで読める Markdown、HTML、可逆な JSON として[エクスポート](/ja/features/export-and-trash)できます。元の記録は変更も削除もされません。
+1 件でも一括でも、Markdown、HTML、解析済みのメッセージ JSON として[エクスポート](/ja/features/export-and-trash)できます。本文と埋め込みリソースはローカルで読めますが、外部画像や読み取れないローカル画像のオフライン利用は保証しません。エクスポートは元の履歴を読み取りますが、リネーム・ゴミ箱・復元・続行は書き込みを伴います。[プライバシーとデータの扱い](/ja/guide/privacy)を参照してください。
 
 ## 対応するエージェント
 
-Claude Code、Codex、Grok Build、Kimi Code、Pi、Antigravity CLI、opencode です。アプリ内チャットは Claude Code と Codex で使えます。残りの 5 つは履歴、ターミナル、エクスポート、分析、再開に対応します。[エージェントのリファレンス](/ja/agents/)で、それぞれがセッションをディスクのどこに保存するかを説明しています。
+Claude Code、Codex、Grok Build、Kimi Code、Pi、Antigravity CLI、opencode です。アプリ内チャットは Claude Code と Codex で使えます。7 つとも履歴、検索、エクスポート、ターミナル再開に対応し、使用量の範囲は形式に依存します。[エージェントのリファレンス](/ja/agents/)で、それぞれがセッションをディスクのどこに保存するかを説明しています。

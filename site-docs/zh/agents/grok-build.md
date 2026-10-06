@@ -5,7 +5,7 @@ description: Grok Build 一个会话一个目录，放在 $GROK_HOME/sessions/ �
 
 # Grok Build 的会话记录存在哪
 
-Grok Build 是目录型的：一个会话一个文件夹，不是一个文件。
+Grok Build 的可见记录是会话目录里的 `updates.jsonl`，默认位于 `~/.grok/sessions/`；`GROK_HOME` 可以改数据根目录。
 
 ```
 $GROK_HOME/sessions/<编码过的 cwd>/<会话 id>/
@@ -46,10 +46,14 @@ jq -r '.info.cwd' ~/.grok/sessions/*/*/summary.json | sort | uniq -c | sort -rn
 
 ## 在终端里读 Grok Build 会话
 
-打印可见的对话：
+提取用户／助手可见的文本片段，不合并流式片段：
 
 ```bash
-jq -r 'select(.type) | .text // .content // empty' \
+jq -r 'select(.method=="session/update" or .method=="_x.ai/session/update")
+  | .params.update
+  | select(.sessionUpdate=="user_message_chunk" or .sessionUpdate=="agent_message_chunk")
+  | .content | if type=="array" then .[] else . end
+  | select(.type=="text") | .text // empty' \
   ~/.grok/sessions/<分组>/<会话 id>/updates.jsonl
 ```
 
@@ -60,6 +64,18 @@ jq '{title, info}' ~/.grok/sessions/<分组>/<会话 id>/summary.json
 ```
 
 因为一个会话就是一个目录，删除意味着删掉整个文件夹，而不是 unlink 一个文件。任何管理 Grok 会话的东西都必须把目录当作操作单元。
+
+## 怎么恢复这个会话
+
+在项目目录运行 `grok --resume SESSION_ID`，需要已安装 Grok Build。应用提供[终端恢复](/zh/features/resume)，不提供 Grok 内置对话。
+
+## 依据与限制
+
+实现依据：[Grok Build 适配器](https://github.com/jerrywu001/cc-sessions-viewer/blob/22fefc6/src-tauri/src/agents/grok.rs)。上游入口：[xAI 文档](https://docs.x.ai/)。
+
+<!--@include: ../../.vitepress/snippets/reference-zh.md-->
+
+上述命令只提取文本片段，不完整处理工具结果、元数据或后台任务通知。见[找不到会话的排障指南](/zh/guide/troubleshooting)。
 
 ## 或者用应用打开
 

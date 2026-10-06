@@ -1,0 +1,1 @@
+> **参考范围：**2026-10-05 对照 Sessions Viewer 0.6.0 的适配器源码核对，不代表验证过每个 CLI 版本。Shell 示例使用 macOS/Linux 路径，需要 `jq`（opencode 用 `sqlite3`）；占位符要替换成实际值，自定义目录以你的配置为准。提取文本不等于完整还原工具、图片或会话树当前分支。命令回归使用[可下载的合成样本](/zh/guide/compatibility#synthetic-samples)，不读取私人会话；验证边界见[能力与证据矩阵](/zh/guide/compatibility#support-matrix)。浏览历史与恢复、编辑数据不同，见[隐私与数据处理](/zh/guide/privacy)。

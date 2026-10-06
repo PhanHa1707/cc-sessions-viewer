@@ -16,7 +16,7 @@ description: 下载 macOS、Windows 或 Linux 版的 Sessions Viewer 安装包�
 ## macOS：怎么过 Gatekeeper
 
 > [!IMPORTANT]
-> macOS 构建只有 ad-hoc 签名，没有做公证（notarization），所以首次打开会被 Gatekeeper 拦下，提示「无法打开"Sessions Viewer"，因为 Apple 无法检查其是否包含恶意软件」。这是未签名开源构建的正常表现，不代表有问题。
+> macOS 构建只有 ad-hoc 签名，没有做公证（notarization），所以首次打开会被 Gatekeeper 拦下，提示「无法打开"Sessions Viewer"，因为 Apple 无法检查其是否包含恶意软件」。这表示 Apple 未验证该构建，并不能证明下载安全。只有确认安装包来自本项目 Releases 且愿意信任它时，才继续操作。
 
 ### macOS 15 Sequoia 及以后
 
@@ -33,11 +33,13 @@ Apple 在 Sequoia 里去掉了右键「打开」这条后门，改走系统设�
 
 ### 任意 macOS 版本，用终端
 
+仅用于已确认可信的下载：该命令移除隔离属性，会绕过相应 Gatekeeper 检查。优先使用上面的系统设置流程。
+
 ```bash
 xattr -dr com.apple.quarantine "/Applications/Sessions Viewer.app"
 ```
 
-如果提示 `Operation not permitted`，命令前面加 `sudo`。
+如果提示 `Operation not permitted`，先检查文件归属和安装位置，不要直接授予更高权限。
 
 ## Linux
 

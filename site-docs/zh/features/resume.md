@@ -6,7 +6,9 @@ image: /screenshots/session-resume.png
 
 # 恢复与继续会话
 
-读完一个会话，多半是想接着做下去。列表里每个会话都有恢复操作，在哪儿打开由你决定。
+安装对应 CLI 后，在项目目录用应用终端恢复会话。Claude Code 和 Codex 还支持应用内对话；另外五种使用终端恢复。命令见[各 agent 对照表](/zh/agents/#resume-commands)。
+
+恢复会启动 CLI，不是只读回放：可能写入新历史、调用配置的服务商、运行获准的工具。处理机密内容前先看[隐私与数据处理](/zh/guide/privacy)。
 
 ![在内嵌终端里恢复的会话，标签页就挨着它的记录](/screenshots/session-resume.png)
 
@@ -44,7 +46,7 @@ Claude Code 和 Codex 的会话可以在应用自带的对话里继续。那些�
 
 ## Shell 标签
 
-会话旁边不一定非得是 agent。普通的 shell 标签在同一个标签条里打开，工作目录相同，并且能扛过重启，你挂着的那个 `npm run dev` 明天还在。
+普通 Shell 标签在项目工作目录中打开，与 agent 会话并排。应用保存标题、目录等标签元数据；真正重启应用后，打开保存的标签会启动新 Shell，不恢复原进程、输出或运行中的 `npm run dev`。应用仍在运行时隐藏／重开窗口，与退出后重启不同。
 
 ## 启动参数
 

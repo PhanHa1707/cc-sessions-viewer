@@ -54,4 +54,4 @@ A Pi transcript opens with its most recent message page first. Scroll upward to 
 
 ## Nothing is written back
 
-Reading a session never modifies the file. The app opens transcripts read-only, and the only writes it ever makes to agent data are the ones you explicitly ask for: renaming a session, or moving one to the [trash](/features/export-and-trash).
+Reading and searching history do not rewrite the source transcript. Local settings and caches may be written. Rename, trash/restore, continued conversations and editing features have separate write behavior; see [privacy and data handling](/guide/privacy).

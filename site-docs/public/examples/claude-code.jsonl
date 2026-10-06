@@ -1,0 +1,4 @@
+{"type":"user","cwd":"/synthetic/project","message":{"role":"user","content":[{"type":"text","text":"Question"},{"type":"image"}]}}
+{"type":"assistant","message":{"role":"assistant","content":[{"type":"thinking","thinking":"Hidden"},{"type":"text","text":"Answer"},{"type":"tool_use","name":"Read"}]}}
+{"type":"user","message":{"role":"user","content":"Legacy string"}}
+{"type":"custom-title","title":"Not conversation text"}

@@ -27,7 +27,7 @@ Codex は `~/.codex/state_<N>.sqlite` にスキーマ版号付きの状態デー
 
 ## パスからはプロジェクトが分からない
 
-ディレクトリ階層は日付であってプロジェクトではありません。作業ディレクトリはファイル内部のフィールドに記録されます。そのため「このリポジトリの Codex セッションを全部見せて」という要求は、ディレクトリ一覧だけでは答えられません。各ファイルを開いて `cwd` を読み出す必要があります。
+ディレクトリ階層は日付であってプロジェクトではありません。作業ディレクトリはファイル内の `session_meta.payload.cwd` に記録されます。そのため「このリポジトリの Codex セッションを全部見せて」という要求は、ディレクトリ一覧だけでは答えられません。各ファイルを開いて `cwd` を読み出す必要があります。
 
 ## 2 種類のレコード
 
@@ -58,17 +58,31 @@ jq -r 'select(.type=="event_msg")
 エディタを開かずにセッションのプロジェクトを確認：
 
 ```bash
-jq -r 'select(.cwd) | .cwd' <ファイル>.jsonl | head -1
+jq -r 'select(.type=="session_meta") | .payload.cwd // empty' SESSION.jsonl | head -1
 ```
 
 全セッションをプロジェクト別に集計します。ディレクトリ構成はこの一覧を与えてくれないので、ループは全ファイルを開くことになります：
 
 ```bash
 for f in ~/.codex/sessions/*/*/*/rollout-*.jsonl; do
-  jq -r 'select(.cwd) | .cwd' "$f" 2>/dev/null | head -1
+  jq -r 'select(.type=="session_meta") | .payload.cwd // empty' "$f" 2>/dev/null | head -1
 done | sort | uniq -c | sort -rn
 ```
 
+## セッションを再開するには
+
+Codex をインストールし、プロジェクトのディレクトリで `codex resume SESSION_ID` を実行します。アプリの[ターミナルまたは内蔵チャット](/ja/features/resume)でも再開できます。通常の一覧にはアーカイブ済みのセッションを含めないため、専用のアーカイブ表示も確認してください。
+
+## 根拠と制限
+
+実装：[Codex アダプター](https://github.com/jerrywu001/cc-sessions-viewer/blob/22fefc6/src-tauri/src/agents/codex.rs)。上流：[Codex ドキュメント](https://developers.openai.com/codex/)。
+
+<!--@include: ../../.vitepress/snippets/reference-ja.md-->
+
+ビューアは上記のホーム配下を読みます。別の `CODEX_HOME` に書き込まれた記録を自動的に検出するとは限りません。[確認手順](/ja/guide/troubleshooting)を参照してください。
+
 ## アプリで開く
 
-[Sessions Viewer](/ja/guide/) はこの集計を代わりに行ってキャッシュし、分割された画像レコードを再び結びつけ、ChatGPT サブスクリプションの 5 時間／週次クォータも作業中に表示します。[Claude Code](/ja/agents/claude-code)、[Grok Build](/ja/agents/grok-build)、[Kimi Code](/ja/agents/kimi-code)、[Pi](/ja/agents/pi)、[Antigravity CLI](/ja/agents/antigravity-cli)、[opencode](/ja/agents/opencode) にも対応しています。
+手順と手動／GUI の使い分けは [Codex のプロジェクト・アーカイブ・保存・再開](/ja/guide/codex-session-viewer)を参照してください。
+
+[Sessions Viewer](/ja/guide/) は分類をキャッシュし、分割した画像を関連づけます。認証済みのアカウントが提供する場合、契約の利用枠も表示できます。トークン料金の請求書とは別です。[統計](/ja/features/stats)を参照してください。[Claude Code](/ja/agents/claude-code)、[Grok Build](/ja/agents/grok-build)、[Kimi Code](/ja/agents/kimi-code)、[Pi](/ja/agents/pi)、[Antigravity CLI](/ja/agents/antigravity-cli)、[opencode](/ja/agents/opencode) にも対応しています。

@@ -8,7 +8,19 @@ description: Sessions Viewer turns the local transcripts of Claude Code, Codex a
 Sessions Viewer reads the transcripts that coding agent CLIs leave on your disk and shows them as one workspace. Open a project, see exactly what happened in a session, then continue the work from the same place. You never have to hunt through JSONL files by hand.
 
 > [!TIP]
-> **Tool management** is the newest part of the app: skills, MCP servers, hooks and instruction files for all seven agents in one place. Find duplicate skills and broken links on your machine and repair them, see how much context an MCP server costs before you type, and dry-run a hook before you trust it. Every change previews the exact file edits first. [Read the tool management guide](/tools/).
+> **Tool management** is the newest part of the app: skills, MCP servers, hooks and instruction files for all seven agents in one place. Find duplicate skills and broken links on your machine and repair them, inspect cached MCP context estimates and preview file edits. Review hook commands before testing them: a dry-run executes the script, it is not a sandbox. [Read the tool management guide](/tools/).
+
+## Quick answers
+
+- [Where are my agent's transcripts and how do I resume them?](/agents/)
+- [Why is a session missing?](/guide/troubleshooting)
+- [Which features are local, and which can use the network?](/guide/privacy)
+- [How do I install the app?](/guide/install)
+- [How do I find and continue Claude Code history?](/guide/claude-code-session-viewer)
+- [How do I locate and resume Codex rollouts?](/guide/codex-session-viewer)
+- [Which formats and CLI versions have evidence? Download samples.](/guide/compatibility)
+- [How do I share skills or check MCP configuration?](/tools/share-skills)
+- [Who maintains the project and its documentation?](/guide/about)
 
 ## Read and find context
 
@@ -20,7 +32,7 @@ Global search (`⌘⇧F`) runs across every project and jumps to the exact match
 
 Claude Code and Codex sessions can be continued in the [built-in chat](/features/resume), with model, reasoning effort (including Opus Ultracode) and permission mode as live controls. Any session can be resumed with one click in the embedded terminal or in Terminal.app, cmux, iTerm2, Ghostty or Warp.
 
-Shell tabs run ordinary commands beside agent sessions and persist across restarts. Launch arguments such as `--dangerously-skip-permissions` are configured per agent and added to new and resumed sessions automatically.
+Shell tabs run ordinary commands beside agent sessions. Tab titles/directories can be restored after restart, but a new shell starts; previous running commands are not restored. Launch arguments such as `--dangerously-skip-permissions` are configured per agent and added to new and resumed sessions automatically.
 
 ## Keep projects organized
 
@@ -30,10 +42,10 @@ Bookmarks pin frequently used folders to the sidebar. Renaming a session syncs t
 
 ## Understand usage and share results
 
-The [statistics view](/features/stats) breaks token spend and cost down by project, model or tool, priced from live models.dev data. On macOS the menu bar shows today, 7-day and 30-day totals per agent.
+The [statistics view](/features/stats) aggregates recorded token usage and estimated cost by project, model or tool using cached models.dev prices. These are not provider invoices. Antigravity's supported transcript has no usage fields. On macOS the menu bar shows today, 7-day and 30-day totals where usage is available.
 
-One session or a batch can be [exported](/features/export-and-trash) as offline-readable Markdown, HTML or lossless JSON. Source transcripts are never modified or removed.
+One session or a batch can be [exported](/features/export-and-trash) as Markdown, HTML or parsed-message JSON. Exported text and embedded resources are readable locally; remote or unreadable local images are not guaranteed offline. Export reads source transcripts; rename, trash, restore and continuation have different write behavior. See [privacy and data handling](/guide/privacy).
 
 ## Supported agents
 
-Claude Code, Codex, Grok Build, Kimi Code, Pi, Antigravity CLI and opencode. In-app chat is available for Claude Code and Codex. The other five get history, terminal, export, analysis and resume. The [agents reference](/agents/) explains where each one stores its sessions on disk.
+Claude Code, Codex, Grok Build, Kimi Code, Pi, Antigravity CLI and opencode. In-app chat is available for Claude Code and Codex. All seven have history, search, export and terminal resume; usage coverage varies by format. The [agents reference](/agents/) explains where each one stores its sessions on disk.

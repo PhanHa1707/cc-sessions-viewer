@@ -1,0 +1,8 @@
+{"type":"session_meta","timestamp":"2026-10-06T00:00:00Z","payload":{"id":"00000000-0000-4000-8000-000000000003","cwd":"/synthetic/project","timestamp":"2026-10-06T00:00:00Z","model":"synthetic-model"}}
+{"type":"response_item","timestamp":"2026-10-06T00:00:01Z","payload":{"type":"message","role":"user","content":[{"type":"input_text","text":"Question"}]}}
+{"type":"event_msg","timestamp":"2026-10-06T00:00:01Z","payload":{"type":"user_message","message":"Question"}}
+{"type":"response_item","timestamp":"2026-10-06T00:00:02Z","payload":{"type":"function_call","name":"exec_command","call_id":"call-synthetic","arguments":"{\"command\":\"echo synthetic\"}"}}
+{"type":"response_item","timestamp":"2026-10-06T00:00:03Z","payload":{"type":"function_call_output","call_id":"call-synthetic","output":"Synthetic tool output"}}
+{"type":"event_msg","timestamp":"2026-10-06T00:00:04Z","payload":{"type":"agent_message","message":"Answer"}}
+{"type":"response_item","timestamp":"2026-10-06T00:00:04Z","payload":{"type":"message","role":"assistant","content":[{"type":"output_text","text":"Answer"}]}}
+{"type":"event_msg","timestamp":"2026-10-06T00:00:05Z","payload":{"type":"token_count","text":"Not conversation text"}}

@@ -1,42 +1,50 @@
 ---
-title: Token and cost statistics
-description: Token usage and cost for Claude Code, Codex and five other agents by project, model and tool, priced from live models.dev data, plus a macOS menu bar readout.
+title: Track coding-agent token usage and estimated cost
+description: Understand recorded Claude Code and Codex usage, model-price estimates, opencode recorded costs, missing usage fields and subscription quotas in Sessions Viewer.
 image: /screenshots/stats.png
 ---
 
-# Token and cost statistics
+# Token usage and estimated cost
 
-![Token and cost analytics in Sessions Viewer, broken down by project and model](/screenshots/stats.png)
+Sessions Viewer aggregates **recorded usage**, not your provider's invoice. Open statistics with `⌘⇧S` to compare projects, models, tools and time periods. Missing usage is not proof of a free call: the supported Antigravity CLI format contains no token fields.
 
-Every agent reports token usage somewhere in its transcript, and none of them show you the total across all of them. `⌘⇧S` opens the statistics view, which reads every session on disk and adds it up.
+![Token and cost analytics broken down by project and model](/screenshots/stats.png)
 
-## What it breaks down by
+## What can I compare? {#usage-breakdown}
 
-- Project: which repository is actually costing you money
-- Model: where the spend sits across the models you use
-- Tool: which tools get called, and how often
-- Time: today, the last 7 days, the last 30 days
+- Project and model: where recorded token use and estimated spend accumulate.
+- Tool: which tools were called and how often.
+- Time: today, the last 7 days and the last 30 days.
+- Agent: all sources or one selected agent.
 
-Scope it to all agents at once or to one in particular.
+Coverage depends on what a transcript records and what its adapter understands. Use the [compatibility and evidence matrix](/guide/compatibility) before comparing totals from different agents.
 
-## Where the prices come from
+## Where do the prices come from? {#price-source}
 
-Prices come from [models.dev](https://models.dev), an open model catalogue, and are cached locally for 24 hours.
+The app fetches a models.dev-format catalog from the [js-bridge mirror](https://www.js-bridge.com/api/models), falling back to [models.dev](https://models.dev/api.json). Prices are cached locally for 24 hours. This is a network request for a catalog, not a request that needs your transcript text.
 
-models.dev was chosen over LiteLLM's price table because of release lag. That table is updated by pull request, so a newly released model can go days without an entry. Fable 5 was in models.dev on launch day and not in LiteLLM. A missing entry means a session that silently costs nothing in the totals, which is worse than a slightly stale price.
+![The model-price table in the app](/screenshots/model-price.png)
 
-![The live model price table inside Sessions Viewer](/screenshots/model-price.png)
+Inspect the price table to see available rates. Unknown model IDs may use a fallback estimate in applicable paths; absent cache rates and unrecognized provider pricing need care. A missing field or price is not evidence of zero usage or zero actual cost.
 
-The full price table is browsable in the app, so you can see what a model is being costed at instead of trusting a number with no provenance.
+## Is the displayed cost my bill? {#cost-vs-bill}
 
-### Where a price table is not enough
+No. Catalog-based estimates do not necessarily include your provider's negotiated rates, routing markup, discounts, subscription fees, tools or other charges. Cache and model matching also affect the result. Reconcile financial decisions with the provider's actual usage report and invoice.
 
-opencode can be pointed at any provider, so a model name does not determine a price. For those sessions the cost recorded per message in opencode's own database is used instead. See [the opencode page](/agents/opencode#cost-from-db). Antigravity CLI records no token fields at all, so it contributes no usage figures.
+opencode is different: the viewer uses costs recorded in its own database, including sub-agent work. Recorded cost is still not an independently verified invoice. See [opencode cost provenance](/agents/opencode#cost-from-db).
 
-## In the menu bar
+Antigravity CLI contributes no token usage in the supported format. Other agents require usage fields in the saved records; text-only examples cannot demonstrate cost accounting.
 
-On macOS the menu bar shows today, 7-day and 30-day totals per agent, so the number is somewhere you will actually see it instead of behind a window you have to open.
+## How are subscription quotas different? {#subscription-quota}
 
-## Quota badges
+Claude and Codex subscription accounts can show quota windows beside the composer. Availability depends on account/authentication and the provider's returned windows; API-key accounts do not have the same subscription quota badge.
 
-Claude and Codex sessions with a subscription login show the 5-hour and weekly quota remaining next to the composer, refreshed as you work. Sessions authenticated with a third-party API key have no such window, so no badge appears.
+Quota remaining is not the same as token-price spend. Quota refresh may contact authenticated provider/CLI services. See [privacy and network behavior](/guide/privacy).
+
+## macOS menu bar
+
+The menu bar shows today, 7-day and 30-day totals per agent. These have the same usage coverage and cost limitations as the statistics view.
+
+## Evidence
+
+Reviewed on 2026-10-05 against Sessions Viewer 0.6.0: [pricing implementation](https://github.com/jerrywu001/cc-sessions-viewer/blob/22fefc6/src-tauri/src/stats/pricing.rs) and [statistics adapters](https://github.com/jerrywu001/cc-sessions-viewer/tree/22fefc6/src-tauri/src/stats). This documents implementation, not a billing audit.

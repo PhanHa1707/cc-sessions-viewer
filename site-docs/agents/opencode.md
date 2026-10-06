@@ -5,7 +5,7 @@ description: opencode keeps every session in one SQLite database at ~/.local/sha
 
 # Where opencode stores session history
 
-opencode is the odd one out. Every other coding agent writes JSONL files you can `grep`. opencode keeps everything in one SQLite database:
+The opencode layout supported here stores sessions in a SQLite database at `~/.local/share/opencode/opencode.db`, or `$XDG_DATA_HOME/opencode/opencode.db` when configured:
 
 ```
 ~/.local/share/opencode/opencode.db
@@ -81,6 +81,18 @@ That last query includes sub-agent sessions on purpose, because they are part of
 ## Why cost has to come from the database {#cost-from-db}
 
 opencode can point at any provider: DeepSeek, OpenRouter, a local model, anything. A price table keyed on model name cannot reconstruct what a call actually cost, so the real `modelID` and `cost` recorded per assistant message are the only trustworthy source.
+
+## How do I resume this session?
+
+Run `opencode --session SESSION_ID` from the project's directory with opencode installed. The app offers [terminal resume](/features/resume), not in-app opencode chat.
+
+## Source and limitations
+
+Implementation: [opencode adapter](https://github.com/jerrywu001/cc-sessions-viewer/blob/22fefc6/src-tauri/src/agents/opencode.rs). Upstream: [opencode documentation](https://opencode.ai/docs/).
+
+<!--@include: ../.vitepress/snippets/reference-en.md-->
+
+SQL examples target the database schema described above; they do not cover older file-based layouts. Read-only queries are distinct from explicit rename/trash/restore actions that write to the database. See [missing-session troubleshooting](/guide/troubleshooting).
 
 ## Or open it in an app
 

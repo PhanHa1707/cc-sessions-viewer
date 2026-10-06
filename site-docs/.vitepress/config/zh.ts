@@ -22,6 +22,12 @@ export const zh: Locale = {
         items: [
           { text: '项目定位', link: '/zh/guide/' },
           { text: '安装', link: '/zh/guide/install' },
+          { text: '找不到会话', link: '/zh/guide/troubleshooting' },
+          { text: '隐私与数据处理', link: '/zh/guide/privacy' },
+        { text: 'Claude Code 使用流程', link: '/zh/guide/claude-code-session-viewer' },
+        { text: 'Codex 使用流程', link: '/zh/guide/codex-session-viewer' },
+        { text: '兼容范围与样例', link: '/zh/guide/compatibility' },
+        { text: '项目与维护说明', link: '/zh/guide/about' },
         ],
       },
       {
@@ -43,7 +49,11 @@ export const zh: Locale = {
       },
       {
         text: '工具管理',
-        items: [{ text: '总览', link: '/zh/tools/' }],
+        items: [
+        { text: '总览', link: '/zh/tools/' },
+        { text: '复用技能与修复链接', link: '/zh/tools/share-skills' },
+        { text: '检查 MCP 配置', link: '/zh/tools/check-mcp' },
+      ],
       },
       {
         text: 'Agents 存储位置',

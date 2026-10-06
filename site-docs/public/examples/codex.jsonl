@@ -1,0 +1,5 @@
+{"type":"session_meta","payload":{"id":"00000000-0000-4000-8000-000000000001","cwd":"/synthetic/project","timestamp":"2026-10-05T00:00:00Z"}}
+{"type":"event_msg","payload":{"type":"user_message","message":"Question"}}
+{"type":"event_msg","payload":{"type":"agent_message","message":"Answer"}}
+{"type":"response_item","payload":{"role":"assistant","content":[{"type":"output_text","text":"Answer"}]}}
+{"type":"event_msg","payload":{"type":"token_count","text":"Not conversation text"}}

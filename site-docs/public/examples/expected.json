@@ -1,0 +1,10 @@
+{
+  "scope": "Synthetic command extraction only; not CLI runtime, full transcript replay or billing validation.",
+  "claude-code": "Question\nAnswer\nLegacy string\n",
+  "codex": "Question\nAnswer\n",
+  "grok-build": "Question\nAnswer\n",
+  "kimi-code": "Question\nAnswer\nLegacy string\n",
+  "pi": "Question\nAnswer\nOther branch\n",
+  "antigravity-cli": "Question\non two lines\n",
+  "opencode": "user|Question\n"
+}

@@ -1,56 +1,69 @@
 ---
-title: 各家 coding agent 的会话记录存在哪
-description: Claude Code、Codex、Grok Build、Kimi Code、Pi、Antigravity CLI、opencode 把会话记录存在磁盘的什么位置、什么格式，以及各家怎么记录一个会话属于哪个项目。
+title: Coding agent 会话记录对比：位置、格式与恢复命令
+description: 对比 Claude Code、Codex、Grok Build、Kimi Code、Pi、Antigravity CLI、opencode 的记录路径、格式、恢复命令及 Sessions Viewer 支持范围。
 ---
 
 # 各家 coding agent 的会话记录存在哪
 
-每一个 coding agent CLI 都会把你的对话写到磁盘上，而它们在「写到哪」「写成什么样」「叫什么名字」这三件事上没有任何共识。这页是对照表，每种 agent 另有单独一页讲记录格式和怎么用命令行直接读。
-
-下面所有路径都对着 [Sessions Viewer](https://github.com/jerrywu001/cc-sessions-viewer) 的解析实现核对过，它七种都读。
+Claude Code 和 Codex 的 JSONL 默认在 `~/.claude/projects/` 和 `~/.codex/sessions/`，Pi 在 `~/.pi/agent/sessions/`。Grok Build、Kimi Code、Antigravity CLI 以目录保存会话；此处支持的 opencode 布局使用一个 SQLite 库。下面对比默认路径、项目信息和恢复方式。
 
 ## 默认位置与格式
 
-| Agent | 默认位置 | 格式 |
+| Agent | 默认位置 | 记录本体 |
 | --- | --- | --- |
-| [Claude Code](/zh/agents/claude-code) | `~/.claude/projects/` | 一个会话一个 JSONL 文件 |
-| [Codex](/zh/agents/codex) | `~/.codex/sessions/` | 一个会话一个 JSONL，按日期分桶 |
-| [Grok Build](/zh/agents/grok-build) | `~/.grok/sessions/` | 一个会话一个目录 |
-| [Kimi Code](/zh/agents/kimi-code) | `~/.kimi-code/sessions/` | 一个会话一个目录 |
-| [Pi](/zh/agents/pi) | `~/.pi/agent/sessions/` | 一个会话一个 JSONL 文件 |
-| [Antigravity CLI](/zh/agents/antigravity-cli) | `~/.gemini/antigravity-cli/brain/` | 一个对话一个目录 |
-| [opencode](/zh/agents/opencode) | `~/.local/share/opencode/opencode.db` | 一个 SQLite 库 |
+| [Claude Code](/zh/agents/claude-code) | `~/.claude/projects/` | `<项目>/<会话 id>.jsonl` |
+| [Codex](/zh/agents/codex) | `~/.codex/sessions/` | `<YYYY>/<MM>/<DD>/rollout-*.jsonl`；归档在 `~/.codex/archived_sessions/` |
+| [Grok Build](/zh/agents/grok-build) | `~/.grok/sessions/` | `<分组>/<会话 id>/updates.jsonl` |
+| [Kimi Code](/zh/agents/kimi-code) | `~/.kimi-code/sessions/` | `<分组>/<会话 id>/agents/main/wire.jsonl` |
+| [Pi](/zh/agents/pi) | `~/.pi/agent/sessions/` | `<项目>/<时间戳>_<uuid>.jsonl` |
+| [Antigravity CLI](/zh/agents/antigravity-cli) | `~/.gemini/antigravity-cli/brain/` | `<uuid>/.system_generated/logs/transcript*.jsonl` |
+| [opencode](/zh/agents/opencode) | `~/.local/share/opencode/opencode.db` | SQLite：`session` → `message` → `part` |
 
-## 「这个会话属于哪个项目」各家怎么判断
+## 怎么恢复会话 {#resume-commands}
 
-有的把工作目录编进路径里，看一眼目录名就知道。有的记在文件内部，意味着不打开每一个文件就没法按项目归类。
+在原项目目录执行，需要已安装并配置对应 CLI。把 `SESSION_ID`、`CONVERSATION_ID` 或路径换成实际值；这些命令会启动 CLI，可能调用服务商或写入数据。
 
-| Agent | 项目信息来自 |
+| Agent | 终端命令 | 应用内对话 |
+| --- | --- | --- |
+| Claude Code | `claude --resume SESSION_ID` | 支持 |
+| Codex | `codex resume SESSION_ID` | 支持 |
+| Grok Build | `grok --resume SESSION_ID` | 不支持 |
+| Kimi Code | `kimi --session SESSION_ID` | 不支持 |
+| Pi | `pi --session "/absolute/path/to/session.jsonl"` | 不支持 |
+| Antigravity CLI | `agy --conversation CONVERSATION_ID` | 不支持 |
+| opencode | `opencode --session SESSION_ID` | 不支持 |
+
+七种 agent 都提供历史浏览、搜索、导出与终端恢复。统计取决于记录是否含用量字段：此处支持的 Antigravity CLI 记录没有这些字段。操作见[恢复与继续](/zh/features/resume)、[导出与回收站](/zh/features/export-and-trash)。
+
+## 项目信息来自哪里
+
+| Agent | 查看器采用的元数据 |
 | --- | --- |
-| Claude Code | 目录名：绝对路径把 `/` 换成 `-` |
-| Codex | 文件内部的 `cwd` 字段。路径只告诉你日期 |
-| Grok Build | `summary.json` → `info.cwd` |
-| Kimi Code | `wd_<名字>_<哈希>` 分组目录 |
-| Pi | 目录名：绝对路径外面裹一对 `--` |
-| Antigravity CLI | `history.jsonl` 里的 `workspace` 字段 |
+| Claude Code | JSONL 中的 `cwd`；编码目录名只是回退，不是可逆路径 |
+| Codex | `session_meta.payload.cwd` |
+| Grok Build | `summary.json` → `info.cwd`，缺失时回退到分组目录线索 |
+| Kimi Code | 会话元数据／索引；`state.json.cwd` 标识工作目录 |
+| Pi | 首条 `session` 记录的 `cwd` |
+| Antigravity CLI | `history.jsonl` → `workspace` |
 | opencode | `project` 表，按 `session.project_id` 关联 |
 
-## 可以改根目录的环境变量
+## 查看器识别哪些自定义根目录
 
-这几家支持把数据根目录搬走：
+| Agent | 支持的配置 |
+| --- | --- |
+| Grok Build | `GROK_HOME`，默认 `~/.grok` |
+| Kimi Code | `KIMI_CODE_HOME`，默认 `~/.kimi-code` |
+| Pi | 依次取 `PI_CODING_AGENT_SESSION_DIR`、`settings.json.sessionDir`、`<PI_CODING_AGENT_DIR>/sessions` |
+| opencode | `XDG_DATA_HOME`，默认 `~/.local/share` |
 
-```bash
-GROK_HOME=/path/to/dir              # Grok Build，默认 ~/.grok
-KIMI_CODE_HOME=/path/to/dir         # Kimi Code，默认 ~/.kimi-code
-PI_CODING_AGENT_DIR=/path/to/dir    # Pi，默认 ~/.pi/agent
-PI_CODING_AGENT_SESSION_DIR=/path   # Pi 的会话根目录
-XDG_DATA_HOME=/path/to/dir          # opencode 读 $XDG_DATA_HOME/opencode
-```
+当前 Claude Code、Codex、Antigravity 适配器读取 home 下的固定位置。这是**查看器的限制**，不代表 CLI 不能配置其他目录。从 Finder 或快捷方式打开的应用可能收不到 shell 中的环境变量。移动文件前先按[排障清单](/zh/guide/troubleshooting)检查。
 
-Claude Code、Codex、Antigravity CLI 在这里读到的布局里没有对应的环境变量，根目录固定在 home 下面。
+## 不装应用怎么读取
 
-## 不装应用怎么读记录
+各 agent 参考页都有 `jq` 或只读 `sqlite3` 示例。这些命令只提取部分字段，不完整还原图片、工具结果或分支。想用可搜索的界面，可以查看 [Sessions Viewer 指南](/zh/guide/)或[下载安装](/zh/guide/install)。
 
-每一页都给了能直接打印出可读记录的 `jq` 或 `sqlite3` 一行命令。这些值得记住：agent 出了问题的时候，磁盘上那个文件是唯一如实记录了当时发生什么的东西。
+## 依据与范围
 
-如果不想每次都敲这些，[Sessions Viewer](/zh/guide/) 把七种都读进同一个可搜索的界面，把工具调用和它的结果配好对，把结构化 diff 和内联图片渲染出来，并且永远不改原文件。
+路径与恢复命令已对照[源码版本 22fefc6 的适配器](https://github.com/jerrywu001/cc-sessions-viewer/tree/22fefc6/src-tauri/src/agents)核对。各参考页另列对应实现，以及已确认的上游入口。
+
+<!--@include: ../../.vitepress/snippets/reference-zh.md-->

@@ -10,6 +10,8 @@ Every agent CLI keeps its own skills, MCP servers, hooks and instruction files s
 
 The tool management panel shows all of it in one place and lets you fix it. Open it from the wrench icon at the bottom of the sidebar, or press `⌘K`.
 
+For a focused task, follow [share a skill and repair links](/tools/share-skills) or [check MCP configuration and loading scope](/tools/check-mcp).
+
 ## Skills {#skills}
 
 ![The skills panel, with a summary bar counting duplicated, detoured and dead skills](/screenshots/tools-skills.png)
@@ -55,9 +57,9 @@ Deleting here unlinks every reference first, then removes every copy, and shows 
 
 Every MCP server across all seven agents appears in one list, whether it was configured in JSON or TOML.
 
-The context budget shows how much of your context window the servers use before you type anything. One server in the screenshot has 29 tools and costs about 5,700 tokens.
+The context budget estimates tool-definition overhead from local Pi and Antigravity caches, at about 4 characters per token. It does not start a server or measure your model's exact tokens. Missing cache data is unmeasured, not zero. The screenshot's cached entry has 29 tools and about 5,700 estimated tokens.
 
-"Active in" shows which agents run a server, and which file says so. Note the entry marked "Grok Build · Read for compatibility": Grok reads Claude's config by default, so a server you added to Claude is running there too. That is normally invisible.
+"Active in" shows which agents are configured to read a server and which file says so, not whether it is actually connected. "Grok Build · Read for compatibility" means Grok can read Claude's config too; review shared scope before editing.
 
 You can add, edit, remove, enable, disable or copy a server to other agents, and each action shows the file changes first. Anything that looks like a token or key is masked until you ask to see it.
 
@@ -75,7 +77,7 @@ Search [skills.sh](https://www.skills.sh) and read a skill before installing it:
 
 Hooks are grouped by command rather than by file. The first entry in the screenshot is one script wired into 4 agents across 9 events, shown as one row instead of twenty-one.
 
-You can dry-run a hook with a real payload and see its output, exit code and how long it took. A hook can be removed entirely or from just one place it is wired in. Hooks this app installed itself are marked and protected from accidental removal.
+You can dry-run a hook with a real payload and see its output, exit code and how long it took. This executes the configured command, not a sandbox; review it first because it can write files or make network requests. A hook can be removed entirely or from just one place it is wired in. Hooks this app installed itself are marked and protected from accidental removal.
 
 ## Global config
 
@@ -92,10 +94,10 @@ Same-named files that have drifted apart get flagged, with a side-by-side diff a
 
 ## Config bundle
 
-The archive icon in the top bar exports your setup as a shareable file. Values are never included, so a teammate gets the shape of your config and not your API keys. On import you choose which agents receive each entry.
+The archive icon exports selected setup as a shareable file. MCP environment and header values are omitted; recognized credential-shaped arguments are redacted. Other content, paths or embedded commands may still be sensitive, so inspect the bundle before sharing. On import choose which agents receive each entry.
 
-## Two rules that always hold
+## Check before applying {#two-rules-that-always-hold}
 
-Nothing is written until you confirm it. Every action shows the exact file changes first, and you can cancel.
+File-changing management actions show a plan to confirm or cancel. Inspect its paths and scope. Running an installer or hook is a separate execution step, not a harmless preview.
 
-Existing files are preserved. Only the keys this app owns are rewritten, the original is backed up alongside, and if the file changed on disk since it was read, the write is refused rather than applied over your edit.
+Configuration updates preserve unrelated entries, back up the original and refuse a stale-file write. Skill moves and deletions can alter whole folders and links, so do not treat these safeguards as a universal undo or a guarantee that all existing content stays untouched.

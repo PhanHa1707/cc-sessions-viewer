@@ -1,0 +1,6 @@
+{"type":"turn.prompt","input":[{"type":"text","text":"Question"},{"type":"image"}],"origin":{"kind":"user"}}
+{"type":"turn.prompt","input":"Background notification","origin":{"kind":"system"}}
+{"type":"context.append_loop_event","event":{"type":"content.part","part":{"type":"text","text":"Answer"}}}
+{"type":"context.append_loop_event","event":{"type":"content.part","part":{"type":"think","think":"Hidden"}}}
+{"type":"turn.prompt","input":"Legacy string"}
+{"type":"context.append_message","message":{"role":"assistant","content":"Duplicate context"}}

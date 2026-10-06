@@ -5,7 +5,7 @@ description: Kimi Code は ~/.kimi-code/sessions/ 配下に 1 セッション 1 
 
 # Kimi Code のセッション履歴の保存場所
 
-Kimi Code はまず作業ディレクトリでグループ分けし、その中でセッションごとにフォルダを作ります：
+Kimi Code の主な記録は、既定で `~/.kimi-code/sessions/` 配下のセッションディレクトリにある `agents/main/wire.jsonl` です。`KIMI_CODE_HOME` で保存先を変更できます：
 
 ```
 $KIMI_CODE_HOME/sessions/wd_<名前>_<ハッシュ>/session_<uuid>/
@@ -40,16 +40,21 @@ media/
 
 ## Kimi Code のセッションをターミナルから読む
 
-セッションとタイトルを新しい順に一覧：
+インデックスのセッション ID とタイトルを一覧（会話本文ではありません）：
 
 ```bash
-jq -r '[.updated_at, .title] | @tsv' ~/.kimi-code/session_index.jsonl | sort -r
+jq -r '[.sessionId, .title] | @tsv' ~/.kimi-code/session_index.jsonl
 ```
 
-記録を出力：
+主イベント形式からユーザー入力とアシスタントのテキストを抽出：
 
 ```bash
-jq -r 'select(.type) | .text // .content // empty' \
+jq -r 'if .type=="turn.prompt" then
+    select((.origin.kind // "user")=="user") | .input
+    | if type=="string" then . else .[]? | select(.type=="text") | .text end
+  elif .type=="context.append_loop_event" and .event.type=="content.part" then
+    .event.part | select(.type=="text") | .text
+  else empty end' \
   ~/.kimi-code/sessions/wd_blog_*/session_<uuid>/agents/main/wire.jsonl
 ```
 
@@ -58,6 +63,18 @@ jq -r 'select(.type) | .text // .content // empty' \
 ```bash
 jq . ~/.kimi-code/sessions/wd_blog_*/session_<uuid>/state.json
 ```
+
+## セッションを再開するには
+
+Kimi Code をインストールし、プロジェクトのディレクトリで `kimi --session SESSION_ID` を実行します。アプリは[ターミナルでの再開](/ja/features/resume)に対応し、Kimi の内蔵チャットには対応していません。
+
+## 根拠と制限
+
+実装：[Kimi Code アダプター](https://github.com/jerrywu001/cc-sessions-viewer/blob/22fefc6/src-tauri/src/agents/kimi.rs)。上流：[Kimi Code リポジトリ](https://github.com/MoonshotAI/kimi-cli)。
+
+<!--@include: ../../.vitepress/snippets/reference-ja.md-->
+
+旧 `context.append_message` は別形式で、アダプターにはフォールバックがあります。上の例は主イベントのみを対象にし、ツール出力を結合しません。[確認手順](/ja/guide/troubleshooting)を参照してください。
 
 ## アプリで開く
 

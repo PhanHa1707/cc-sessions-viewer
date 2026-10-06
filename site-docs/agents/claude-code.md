@@ -11,7 +11,7 @@ Claude Code keeps every session as a single JSONL file under your home directory
 ~/.claude/projects/<project-dir>/<session-id>.jsonl
 ```
 
-`<session-id>` is the UUID you pass to `claude --resume`. Each project directory also holds a `sessions-index.json` that the CLI maintains for its own session picker.
+`<session-id>` is the UUID you pass to `claude --resume`. Some CLI versions also maintain `sessions-index.json`; Sessions Viewer can scan the JSONL files without that index.
 
 ## The project directory name
 
@@ -21,7 +21,7 @@ Claude Code derives the directory name from the absolute path of the project by 
 /Users/me/apps/blog   →   -Users-me-apps-blog
 ```
 
-Nothing else is encoded, so two projects whose paths differ only by a character that gets rewritten can collide in principle. In practice it means you can read the directory listing and know which project each folder belongs to.
+Windows separators and the drive colon are also replaced (`E:\work\blog` → `E--work-blog`). This encoding is not reversible when names contain dashes. Prefer the record's `cwd` to identify the project rather than guessing from the folder name.
 
 ## What a Claude Code record looks like
 
@@ -50,11 +50,12 @@ When a `tool_result` comes back from a file edit, it often carries a `structured
 
 ## Reading a Claude Code session from the terminal
 
-Print every message as `role: text`:
+Extract user and assistant text (not tools or images):
 
 ```bash
 jq -r 'select(.type=="user" or .type=="assistant")
-  | .message.content[]? | select(.type=="text") | .text' \
+  | .message.content
+  | if type=="string" then . else .[]? | select(.type=="text") | .text end' \
   ~/.claude/projects/-Users-me-apps-blog/<session-id>.jsonl
 ```
 
@@ -71,6 +72,20 @@ Find the sessions that touched a particular file:
 grep -l "src/api.ts" ~/.claude/projects/*/*.jsonl
 ```
 
+## How do I resume this session?
+
+Run `claude --resume SESSION_ID` from the project's directory with Claude Code installed. Or use the app's [terminal or in-app chat](/features/resume). Continuing may contact the configured provider and append new turns.
+
+## Source and limitations
+
+Implementation: [Claude Code adapter](https://github.com/jerrywu001/cc-sessions-viewer/blob/22fefc6/src-tauri/src/agents/claude.rs). Upstream: [Claude Code documentation](https://code.claude.com/docs/en/overview).
+
+<!--@include: ../.vitepress/snippets/reference-en.md-->
+
+Missing a session? Follow the [discovery checklist](/guide/troubleshooting).
+
 ## Or open it in an app
 
-[Sessions Viewer](/guide/) reads these files directly. Thinking blocks, tool call and result pairing, `structuredPatch` diffs and inline images all render the way they happened, the originals are never written to, and `⌘⇧F` searches across every project at once. It also reads [Codex](/agents/codex), [Grok Build](/agents/grok-build), [Kimi Code](/agents/kimi-code), [Pi](/agents/pi), [Antigravity CLI](/agents/antigravity-cli) and [opencode](/agents/opencode).
+Follow the [Claude Code search, export and resume workflow](/guide/claude-code-session-viewer) for step-by-step use and manual-vs-GUI tradeoffs.
+
+[Sessions Viewer](/guide/) reads these files directly. Thinking blocks, tool call and result pairing, `structuredPatch` diffs and inline images all render the way they happened, history browsing does not rewrite the originals, and `⌘⇧F` searches across every project at once. It also reads [Codex](/agents/codex), [Grok Build](/agents/grok-build), [Kimi Code](/agents/kimi-code), [Pi](/agents/pi), [Antigravity CLI](/agents/antigravity-cli) and [opencode](/agents/opencode).

@@ -3248,6 +3248,22 @@ mod tests {
     use std::io::Write;
 
     #[test]
+    fn docs_public_fixture_codex_parser() {
+        let msgs = super::super::docs_fixtures::with_fixture(
+            include_str!("../../../site-docs/public/examples/codex-adapter.jsonl"),
+            |path| {
+                // Normal read loads the user's title index. The same parser with
+                // an empty index isolates this offline test from private files.
+                let mut msgs = read_with_title_index(path, &HashMap::new())
+                    .expect("parse public Codex fixture");
+                post_process_codex_session_msgs(&mut msgs);
+                msgs
+            },
+        );
+        super::super::docs_fixtures::assert_expected("codex", &msgs);
+    }
+
+    #[test]
     fn codex_files_mentioned_block_extracts_files_and_request() {
         let text = "\n# Files mentioned by the user:\n\n## devtools_options.yaml: /Users/wuchao/develop/flutter/sales-app/devtools_options.yaml\n\n## My request for Codex:\nhi\n";
         let (files, body) = extract_codex_files(text);

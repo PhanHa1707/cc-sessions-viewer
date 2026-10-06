@@ -36,6 +36,24 @@ jobs:
       - name: Unit tests
         run: npm run test:run
 
+  docs:
+    name: docs (commands + SEO + links)
+    runs-on: ubuntu-latest
+    if: ${{ !startsWith(github.event.head_commit.message, 'Release:') }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Install documentation command tools
+        run: sudo apt-get update && sudo apt-get install -y jq sqlite3
+      - name: Test documented commands and audit guards
+        run: npm run docs:test
+      - name: Build and check static SEO and links
+        run: npm run docs:build
+
   rust:
     name: rust (clippy + cargo test)
     # macOS runners ship the WebKit framework Tauri's crate links against, so

@@ -6,7 +6,9 @@ image: /screenshots/session-resume.png
 
 # Resuming and continuing a session
 
-Reading a session usually ends with wanting to continue it. Every session in the list has a resume action, and where it opens is up to you.
+With the matching CLI installed, resume a supported session from its project directory in the app's terminal. Claude Code and Codex also support in-app chat; the other five use terminal resume. See the [per-agent command table](/agents/#resume-commands).
+
+Resume starts a CLI, not a read-only replay: it can write new history, call your configured provider and run permitted tools. Check [privacy and data handling](/guide/privacy) before continuing confidential work.
 
 ![A session resumed in the embedded terminal, in a tab next to its transcript](/screenshots/session-resume.png)
 
@@ -44,7 +46,7 @@ The session navigator lets you find and switch to another session from the detai
 
 ## Shell tabs
 
-Not everything next to a session is an agent. Plain shell tabs open in the same tab strip, in the same working directory, and survive a restart, so the `npm run dev` you had running is still there tomorrow.
+Plain shell tabs open beside agent sessions in the project's working directory. The app saves tab metadata such as title and directory. After an actual app restart, opening a saved shell tab starts a new shell process; it does not recover the previous process, output or running `npm run dev`. Hiding/reopening a window while the app is still running is different from quitting and restarting it.
 
 ## Launch arguments
 

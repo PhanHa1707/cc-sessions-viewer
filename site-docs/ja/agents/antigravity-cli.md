@@ -5,7 +5,7 @@ description: Antigravity CLI（agy）は ~/.gemini/antigravity-cli/brain/<uuid>/
 
 # Antigravity CLI のセッション履歴の保存場所
 
-Antigravity CLI（`agy`）は会話ごとに UUID のディレクトリを作り、記録はその数階層下に埋まっています：
+Antigravity CLI（`agy`）は `~/.gemini/antigravity-cli/brain/<会話 uuid>/.system_generated/logs/` に step 記録を保存します。`transcript.jsonl` と `transcript_full.jsonl` を比較してください。どちらも完全とは限りません：
 
 ```
 ~/.gemini/antigravity-cli/brain/<会話 uuid>/.system_generated/logs/transcript.jsonl
@@ -71,10 +71,23 @@ jq -r '[.step_index, .source, .type] | @tsv' \
 自分が入力した内容だけを、XML の殻を外して取り出す：
 
 ```bash
-jq -r 'select(.type=="USER_INPUT") | .content' \
-  ~/.gemini/antigravity-cli/brain/<uuid>/.system_generated/logs/transcript.jsonl \
-  | sed -n 's/.*<USER_REQUEST>\(.*\)<\/USER_REQUEST>.*/\1/p'
+jq -r 'select(.type=="USER_INPUT") | .content | strings
+  | select(contains("<USER_REQUEST>") and contains("</USER_REQUEST>"))
+  | split("<USER_REQUEST>")[1] | split("</USER_REQUEST>")[0]' \
+  ~/.gemini/antigravity-cli/brain/<uuid>/.system_generated/logs/transcript.jsonl
 ```
+
+## 会話を再開するには
+
+対応する CLI をインストールし、ワークスペースで `agy --conversation CONVERSATION_ID` を実行します。アプリは[ターミナルでの再開](/ja/features/resume)に対応し、Antigravity の内蔵チャットには対応していません。
+
+## 根拠と制限
+
+実装：[Antigravity CLI アダプター](https://github.com/jerrywu001/cc-sessions-viewer/blob/22fefc6/src-tauri/src/agents/agy.rs)。
+
+<!--@include: ../../.vitepress/snippets/reference-ja.md-->
+
+このページはアダプターが読む `agy` の形式を扱い、Antigravity という名前のすべての製品を対象にはしません。大きいファイルでも、両方から失われた記録は復元できません。[確認手順](/ja/guide/troubleshooting)を参照してください。
 
 ## アプリで開く
 

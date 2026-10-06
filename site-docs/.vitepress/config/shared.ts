@@ -236,6 +236,19 @@ function seoHead(page: PageData, siteConfig: SiteConfig): HeadConfig[] {
     },
   ]
 
+  const pageId = `${url}#webpage`
+  graph.push({
+    '@type': 'WebPage',
+    '@id': pageId,
+    url,
+    name: page.title,
+    description,
+    inLanguage: lang,
+    isPartOf: { '@id': siteId },
+    mainEntity: { '@id': isHome ? `${SITE_URL}/#app` : `${url}#article` },
+    ...(!isHome ? { breadcrumb: { '@id': `${url}#breadcrumb` } } : {}),
+  })
+
   if (isHome) {
     graph.push({
       '@type': 'SoftwareApplication',
@@ -253,6 +266,7 @@ function seoHead(page: PageData, siteConfig: SiteConfig): HeadConfig[] {
       license: 'https://opensource.org/licenses/MIT',
       downloadUrl: LATEST_RELEASE,
       softwareHelp: { '@type': 'CreativeWork', url: abs(`/${prefix}guide/`) },
+      mainEntityOfPage: { '@id': pageId },
       publisher: { '@id': orgId },
       isPartOf: { '@id': siteId },
       sameAs: [REPO],
@@ -270,7 +284,9 @@ function seoHead(page: PageData, siteConfig: SiteConfig): HeadConfig[] {
     const section = segments[0]
     const crumbs: Array<{ name: string; item: string }> = [{ name: SITE_TITLE, item: abs(`/${prefix}`) }]
     const label = sectionLabel(site, key, prefix, section)
-    if (segments.length > 1 && segments[1] !== 'index' && label) {
+    // A directory is not necessarily a page (features/ has no index.md).
+    // Omit unbacked hierarchy levels instead of emitting a nonexistent URL.
+    if (segments.length > 1 && segments[1] !== 'index' && label && siteConfig.pages.includes(`${prefix}${section}/index.md`)) {
       crumbs.push({ name: label, item: abs(`/${prefix}${section}/`) })
     }
     crumbs.push({ name: page.title, item: url })
@@ -292,8 +308,7 @@ function seoHead(page: PageData, siteConfig: SiteConfig): HeadConfig[] {
         author: { '@id': orgId },
         publisher: { '@id': orgId },
         isPartOf: { '@id': siteId },
-        mainEntityOfPage: url,
-        breadcrumb: { '@id': `${url}#breadcrumb` },
+        mainEntityOfPage: { '@id': pageId },
       },
     )
   }

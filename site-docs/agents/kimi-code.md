@@ -5,7 +5,7 @@ description: Kimi Code stores one directory per session under ~/.kimi-code/sessi
 
 # Where Kimi Code stores session history
 
-Kimi Code groups sessions by working directory, then gives each session its own folder:
+Kimi Code's main transcript is `agents/main/wire.jsonl` inside a session directory under `~/.kimi-code/sessions/` by default. `KIMI_CODE_HOME` overrides the data root:
 
 ```
 $KIMI_CODE_HOME/sessions/wd_<name>_<hash>/session_<uuid>/
@@ -40,16 +40,21 @@ media/
 
 ## Reading a Kimi Code session from the terminal
 
-List your sessions with their titles, newest first:
+List indexed session IDs and titles (the index is not the transcript):
 
 ```bash
-jq -r '[.updated_at, .title] | @tsv' ~/.kimi-code/session_index.jsonl | sort -r
+jq -r '[.sessionId, .title] | @tsv' ~/.kimi-code/session_index.jsonl
 ```
 
-Print a transcript:
+Extract user prompts and assistant text from the primary event format:
 
 ```bash
-jq -r 'select(.type) | .text // .content // empty' \
+jq -r 'if .type=="turn.prompt" then
+    select((.origin.kind // "user")=="user") | .input
+    | if type=="string" then . else .[]? | select(.type=="text") | .text end
+  elif .type=="context.append_loop_event" and .event.type=="content.part" then
+    .event.part | select(.type=="text") | .text
+  else empty end' \
   ~/.kimi-code/sessions/wd_blog_*/session_<uuid>/agents/main/wire.jsonl
 ```
 
@@ -58,6 +63,18 @@ Inspect one session's metadata:
 ```bash
 jq . ~/.kimi-code/sessions/wd_blog_*/session_<uuid>/state.json
 ```
+
+## How do I resume this session?
+
+Run `kimi --session SESSION_ID` from the project's directory with Kimi Code installed. The app offers [terminal resume](/features/resume), not in-app Kimi chat.
+
+## Source and limitations
+
+Implementation: [Kimi Code adapter](https://github.com/jerrywu001/cc-sessions-viewer/blob/22fefc6/src-tauri/src/agents/kimi.rs). Upstream: [Kimi Code repository](https://github.com/MoonshotAI/kimi-cli).
+
+<!--@include: ../.vitepress/snippets/reference-en.md-->
+
+Older `context.append_message` logs use a different envelope; the adapter has a fallback, while the example above targets primary events. It does not concatenate tool output. See [missing-session troubleshooting](/guide/troubleshooting).
 
 ## Or open it in an app
 

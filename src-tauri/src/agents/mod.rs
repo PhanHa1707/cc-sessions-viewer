@@ -184,6 +184,8 @@ pub mod grok;
 pub mod kimi;
 pub mod opencode;
 pub mod pi;
+#[cfg(test)]
+mod docs_fixtures;
 
 /// A session's on-disk storage boundary.
 ///

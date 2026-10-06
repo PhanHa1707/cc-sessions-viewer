@@ -22,6 +22,12 @@ export const en: Locale = {
         items: [
           { text: 'What it does', link: '/guide/' },
           { text: 'Installation', link: '/guide/install' },
+          { text: 'Missing sessions', link: '/guide/troubleshooting' },
+          { text: 'Privacy and data handling', link: '/guide/privacy' },
+        { text: 'Claude Code workflow', link: '/guide/claude-code-session-viewer' },
+        { text: 'Codex workflow', link: '/guide/codex-session-viewer' },
+        { text: 'Compatibility and samples', link: '/guide/compatibility' },
+        { text: 'About and maintenance', link: '/guide/about' },
         ],
       },
       {
@@ -43,7 +49,11 @@ export const en: Locale = {
       },
       {
         text: 'Tool management',
-        items: [{ text: 'Overview', link: '/tools/' }],
+        items: [
+        { text: 'Overview', link: '/tools/' },
+        { text: 'Share skills and repair links', link: '/tools/share-skills' },
+        { text: 'Check MCP configuration', link: '/tools/check-mcp' },
+      ],
       },
       {
         text: 'Where agents store sessions',

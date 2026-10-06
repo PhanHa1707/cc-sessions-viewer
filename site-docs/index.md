@@ -1,6 +1,6 @@
 ---
 layout: home
-title: Session history viewer for Claude Code, Codex and opencode
+title: Sessions Viewer — Claude Code, Codex and opencode history
 titleTemplate: false
 description: A free desktop app that reads, searches and resumes the local session history of Claude Code, Codex, Grok Build, Kimi Code, Pi, Antigravity CLI and opencode.
 
@@ -37,18 +37,32 @@ features:
     link: /features/project-editor
     linkText: Project file editor
   - title: Token and cost stats
-    details: Priced from live models.dev data and broken down by project, model and tool. The macOS menu bar shows today, 7-day and 30-day totals per agent.
+    details: Recorded usage and estimated cost by project, model and tool, using cached models.dev prices—not provider invoices. macOS shows today, 7-day and 30-day totals where usage is available.
     link: /features/stats
     linkText: Statistics
   - title: Tool management
     details: Skills, MCP servers, hooks and instruction files for all seven agents in one panel. Find duplicated skills and dead links on your machine, and see the exact file edits before anything is written.
     link: /tools/
     linkText: Manage skills, MCP and hooks
-  - title: Read-only and local
-    details: Original transcripts are never modified. Deleting moves a session into a shared trash you can restore from, and nothing is uploaded anywhere.
-    link: /features/export-and-trash#the-read-only-guarantee
-    linkText: The read-only guarantee
+  - title: Local history browsing
+    details: History parsing, search and export run locally. Resume and chat use your configured CLI or provider; updates, prices and usage features can make network requests. Rename, trash and configuration edits are explicit writes.
+    link: /guide/privacy
+    linkText: Privacy and data handling
 ---
+
+## What is Sessions Viewer?
+
+Sessions Viewer is a free, MIT-licensed desktop app for macOS, Windows and Linux that lets you read, search and export local coding-agent history. It resumes all seven supported agents in a terminal; in-app chat is available for Claude Code and Codex.
+
+Looking for a specific answer? [Compare paths, formats and resume commands](/agents/), [troubleshoot a missing session](/guide/troubleshooting), or [check privacy and network behavior](/guide/privacy).
+
+## Task guides and evidence {#task-guides}
+
+- [Find, read, export and continue a Claude Code session](/guide/claude-code-session-viewer)
+- [Locate a Codex rollout's project and resume the conversation](/guide/codex-session-viewer)
+- [Share skills and repair links](/tools/share-skills) · [Check MCP configuration](/tools/check-mcp)
+- [Compatibility matrix and downloadable synthetic examples](/guide/compatibility)
+- [Project identity and documentation maintenance](/guide/about)
 
 ## Where each agent keeps its sessions
 

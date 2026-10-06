@@ -26,7 +26,7 @@ https://github.com/user-attachments/assets/9bcb92a8-e5b8-40e5-b492-af252162309b
 Sessions Viewer 将本地 agent 会话记录整理成可搜索的工作区。打开项目，准确回看发生了什么，再从同一位置继续工作，无需手动翻找 JSONL 文件。
 
 > [!TIP]
-> **新增 —— 工具管理。** 七家 agent 的 skills、MCP server、hooks 和全局指令文件，集中在一个页面。把本机重复的 skill 和断掉的链接找出来并修好，在开口之前先看清楚 MCP server 吃掉多少上下文，hook 可以先试跑再决定要不要信它。每一次改动都先把会改哪些文件摆给你看。
+> **新增 —— 工具管理。** 七家 agent 的 skills、MCP server、hooks 和全局指令文件，集中在一个页面。把本机重复的 skill 和断掉的链接找出来并修好，查看缓存的 MCP 上下文估算并预览文件改动。测试 hook 前先检查命令：dry-run 会执行真实脚本，不是沙箱。
 >
 > → **[查看工具管理文档](https://sessions-viewer.js-bridge.com/zh/tools/)**
 
@@ -41,7 +41,7 @@ Sessions Viewer 将本地 agent 会话记录整理成可搜索的工作区。打
 
 - **应用内对话** — 在内置聊天里新开或续聊 Claude Code、Codex 会话，实时切换模型、推理强度（含 Opus **Ultracode**）与权限模式。
 - **一键恢复** — 在窗口内嵌终端或 **Terminal.app**、**cmux**、**iTerm2**、**Ghostty**、**Warp** 中恢复或新建会话。
-- **Shell 标签** — 在 agent 会话旁运行普通 shell 命令，标签状态跨重启保留。
+- **Shell 标签** — 在 agent 会话旁运行普通命令；重启可恢复标题／目录并启动新 Shell，不恢复原进程或运行中的命令。
 - **启动参数** — 为每个 agent 配置 CLI 参数（如 `--dangerously-skip-permissions`），新建或恢复时自动追加。
 
 ### 管理项目
@@ -53,15 +53,19 @@ Sessions Viewer 将本地 agent 会话记录整理成可搜索的工作区。打
 
 ### 统计与导出
 
-- **统计与实时价格** — 基于 models.dev 实时价目按项目、模型或工具分析 Token 与成本；macOS 菜单栏显示各 agent 的 Today / 7d / 30d 汇总。
-- **灵活导出** — 单会话或批量导出为离线可读的 Markdown、HTML 或无损 JSON。
-- **只读安全** — 原始 JSONL 始终只读，不会被修改或删除。
+- **统计与价格** — 用缓存的 models.dev 价格按项目、模型或工具统计已记录 Token 与估算成本；macOS 菜单栏显示有用量字段的 Today / 7d / 30d 汇总。估算不是服务商账单。
+- **灵活导出** — 保存 Markdown、HTML 或解析后的消息 JSON；远程或不可读取的本地图片可能仍是链接，完整备份应保留原生文件。
+- **历史浏览只读** — 阅读、搜索、导出不会重写源记录。重命名、回收／还原、继续会话及编辑是不同的写入操作。
+
+历史处理在本地运行，但整个应用不是完全不联网。在线对话／恢复使用配置的 CLI 或服务商；更新、价格和额度功能也可能发起请求。详见[隐私与数据处理](https://sessions-viewer.js-bridge.com/zh/guide/privacy)。
 
 ### 支持的会话来源
 
-Claude Code、Codex、Grok Build、Kimi Code、Pi、Antigravity CLI 和 opencode。Grok Build、Kimi Code 与 Pi 支持历史记录、终端、导出、统计和续跑流程；它们的 GUI Chat 暂不包含在内。
+Claude Code、Codex、Grok Build、Kimi Code、Pi、Antigravity CLI 和 opencode。七种都支持历史浏览、搜索、导出和终端恢复；应用内对话只支持 Claude Code 与 Codex。用量统计取决于记录字段，此处支持的 Antigravity 记录没有用量字段。
 
 每一种把会话存在磁盘的什么地方、怎么用命令行直接读，都写在[sessions-viewer.js-bridge.com/zh/agents/](https://sessions-viewer.js-bridge.com/zh/agents/)。
+
+任务指南：[Claude Code 历史](https://sessions-viewer.js-bridge.com/zh/guide/claude-code-session-viewer) · [Codex rollout](https://sessions-viewer.js-bridge.com/zh/guide/codex-session-viewer) · [兼容范围与合成样例](https://sessions-viewer.js-bridge.com/zh/guide/compatibility) · [项目与维护](https://sessions-viewer.js-bridge.com/zh/guide/about)。
 
 ## 截图
 
@@ -145,8 +149,8 @@ Claude Code、Codex、Grok Build、Kimi Code、Pi、Antigravity CLI 和 opencode
 
 > [!IMPORTANT]
 > **macOS：本应用未做公证（notarization）。** 它只有 ad-hoc 签名，首次打开会被 Gatekeeper
-> 拦下，提示「无法打开"Sessions Viewer"，因为 Apple 无法检查其是否包含恶意软件」。这是未签名
-> 开源构建的正常表现，不代表有问题。
+> 拦下，提示「无法打开"Sessions Viewer"，因为 Apple 无法检查其是否包含恶意软件」。这表示 Apple
+> 没有验证该构建，不代表下载已被证明安全。只有确认安装包来自本项目 Releases 且愿意信任它时才继续。
 >
 > **macOS 15 Sequoia 及以后** —— 右键 →「打开」这招已经失效，Apple 把这个后门关了：
 > 1. 双击应用，把警告关掉。
@@ -156,11 +160,11 @@ Claude Code、Codex、Grok Build、Kimi Code、Pi、Antigravity CLI 和 opencode
 >
 > **macOS 14 Sonoma 及以前** —— Finder 里右键应用 → **打开** → 弹窗里再点 **打开**，一次即可。
 >
-> **两个版本通用，终端一行搞定：**
+> **终端方式仅用于可信下载：**该命令移除隔离属性，绕过相应 Gatekeeper 检查；优先使用上述系统设置流程。
 > ```bash
 > xattr -dr com.apple.quarantine "/Applications/Sessions Viewer.app"
 > ```
-> 如果提示 `Operation not permitted`，前面加 `sudo`。
+> 如果提示 `Operation not permitted`，先检查归属和安装位置，不要直接提升权限。
 
 Linux 上 `.AppImage` 是便携格式 —— `chmod +x` 后直接运行。`.deb` 安装：
 ```bash
@@ -177,7 +181,7 @@ npm run tauri dev      # 开发模式
 npm run tauri build    # 打包
 ```
 
-依赖：Node 20+、Rust stable。架构详见 [`CLAUDE.md`](CLAUDE.md)。
+依赖：最新 Node 22、Rust stable。架构详见 [`CLAUDE.md`](CLAUDE.md)。
 
 ## 贡献
 

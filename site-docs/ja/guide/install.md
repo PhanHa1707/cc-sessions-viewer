@@ -16,7 +16,7 @@ description: macOS、Windows、Linux 向けの Sessions Viewer インストー�
 ## macOS: Gatekeeper を通す
 
 > [!IMPORTANT]
-> macOS 版は ad-hoc 署名のみで公証（notarization）を受けていないため、初回起動時に Gatekeeper が「"Sessions Viewer"は開けません。Apple は、悪質なソフトウェアが含まれていないことを確認できませんでした」と表示してブロックします。署名なしのオープンソースビルドでは正常な表示で、異常があるわけではありません。
+> macOS 版は ad-hoc 署名のみで公証（notarization）を受けていないため、初回起動時に Gatekeeper が「"Sessions Viewer"は開けません。Apple は、悪質なソフトウェアが含まれていないことを確認できませんでした」と表示してブロックします。これは Apple がビルドを検証していないという意味で、ダウンロードが安全だという証明ではありません。このプロジェクトのリリースから取得し、信頼すると判断した場合のみ続行してください。
 
 ### macOS 15 Sequoia 以降
 
@@ -33,11 +33,13 @@ Finder でアプリを右クリック（または Control クリック）し、*
 
 ### どのバージョンでも、ターミナルから
 
+信頼できるダウンロードに限ります。隔離属性を削除し、その Gatekeeper 確認を回避するコマンドです。上のシステム設定の手順を優先してください。
+
 ```bash
 xattr -dr com.apple.quarantine "/Applications/Sessions Viewer.app"
 ```
 
-`Operation not permitted` と出る場合は `sudo` を付けてください。
+`Operation not permitted` の場合は所有権とインストール先を確認し、無条件に権限を上げないでください。
 
 ## Linux
 

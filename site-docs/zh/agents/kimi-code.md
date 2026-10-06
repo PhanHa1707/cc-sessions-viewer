@@ -5,7 +5,7 @@ description: Kimi Code 一个会话一个目录，放在 ~/.kimi-code/sessions/ 
 
 # Kimi Code 的会话记录存在哪
 
-Kimi Code 先按工作目录分组，再给每个会话一个自己的文件夹：
+Kimi Code 的主记录是会话目录里的 `agents/main/wire.jsonl`，默认位于 `~/.kimi-code/sessions/`；`KIMI_CODE_HOME` 可以改数据根目录：
 
 ```
 $KIMI_CODE_HOME/sessions/wd_<名字>_<哈希>/session_<uuid>/
@@ -40,16 +40,21 @@ media/
 
 ## 在终端里读 Kimi Code 会话
 
-按时间倒序列出会话和标题：
+列出索引中的会话 ID 和标题；索引不是对话正文：
 
 ```bash
-jq -r '[.updated_at, .title] | @tsv' ~/.kimi-code/session_index.jsonl | sort -r
+jq -r '[.sessionId, .title] | @tsv' ~/.kimi-code/session_index.jsonl
 ```
 
-打印一份记录：
+从主事件格式提取用户提问和助手文本：
 
 ```bash
-jq -r 'select(.type) | .text // .content // empty' \
+jq -r 'if .type=="turn.prompt" then
+    select((.origin.kind // "user")=="user") | .input
+    | if type=="string" then . else .[]? | select(.type=="text") | .text end
+  elif .type=="context.append_loop_event" and .event.type=="content.part" then
+    .event.part | select(.type=="text") | .text
+  else empty end' \
   ~/.kimi-code/sessions/wd_blog_*/session_<uuid>/agents/main/wire.jsonl
 ```
 
@@ -58,6 +63,18 @@ jq -r 'select(.type) | .text // .content // empty' \
 ```bash
 jq . ~/.kimi-code/sessions/wd_blog_*/session_<uuid>/state.json
 ```
+
+## 怎么恢复这个会话
+
+在项目目录运行 `kimi --session SESSION_ID`，需要已安装 Kimi Code。应用提供[终端恢复](/zh/features/resume)，不提供 Kimi 内置对话。
+
+## 依据与限制
+
+实现依据：[Kimi Code 适配器](https://github.com/jerrywu001/cc-sessions-viewer/blob/22fefc6/src-tauri/src/agents/kimi.rs)。上游：[Kimi Code 仓库](https://github.com/MoonshotAI/kimi-cli)。
+
+<!--@include: ../../.vitepress/snippets/reference-zh.md-->
+
+旧的 `context.append_message` 使用另一种结构，适配器有回退逻辑；上述命令只适用于主事件格式，不合并工具输出。见[找不到会话的排障指南](/zh/guide/troubleshooting)。
 
 ## 或者用应用打开
 

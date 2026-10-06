@@ -5,7 +5,7 @@ description: Grok Build keeps each session as a directory under $GROK_HOME/sessi
 
 # Where Grok Build stores session history
 
-Grok Build is directory-backed: each session is a folder, not a single file.
+Grok Build's visible history is `updates.jsonl` inside a session directory under `~/.grok/sessions/` by default. `GROK_HOME` overrides the data root.
 
 ```
 $GROK_HOME/sessions/<encoded-cwd>/<session-id>/
@@ -46,10 +46,14 @@ jq -r '.info.cwd' ~/.grok/sessions/*/*/summary.json | sort | uniq -c | sort -rn
 
 ## Reading a Grok Build session from the terminal
 
-Print the visible conversation:
+Extract visible user/assistant text chunks (streamed chunks are not merged):
 
 ```bash
-jq -r 'select(.type) | .text // .content // empty' \
+jq -r 'select(.method=="session/update" or .method=="_x.ai/session/update")
+  | .params.update
+  | select(.sessionUpdate=="user_message_chunk" or .sessionUpdate=="agent_message_chunk")
+  | .content | if type=="array" then .[] else . end
+  | select(.type=="text") | .text // empty' \
   ~/.grok/sessions/<group>/<session-id>/updates.jsonl
 ```
 
@@ -60,6 +64,18 @@ jq '{title, info}' ~/.grok/sessions/<group>/<session-id>/summary.json
 ```
 
 Because a session is a directory, deleting one means removing the whole folder rather than unlinking a single file. Anything that manages Grok sessions has to treat the directory as the unit.
+
+## How do I resume this session?
+
+Run `grok --resume SESSION_ID` from the project's directory with Grok Build installed. [Resume in a terminal](/features/resume) from the app; Grok does not have in-app chat.
+
+## Source and limitations
+
+Implementation: [Grok Build adapter](https://github.com/jerrywu001/cc-sessions-viewer/blob/22fefc6/src-tauri/src/agents/grok.rs). Upstream entry: [xAI documentation](https://docs.x.ai/).
+
+<!--@include: ../.vitepress/snippets/reference-en.md-->
+
+The command above extracts text chunks, not a full replay of tool results, metadata or background-task notifications. See [missing-session troubleshooting](/guide/troubleshooting).
 
 ## Or open it in an app
 

@@ -1,0 +1,6 @@
+{"type":"session","id":"00000000-0000-4000-8000-000000000001","version":3,"timestamp":"2026-10-05T00:00:00Z","cwd":"/synthetic/project"}
+{"type":"message","id":"a","message":{"role":"user","content":"Question"}}
+{"type":"message","id":"b","parentId":"a","message":{"role":"assistant","content":[{"type":"thinking","thinking":"Hidden"},{"type":"text","text":"Answer"}]}}
+{"type":"message","id":"c","parentId":"a","message":{"role":"assistant","content":[{"type":"text","text":"Other branch"}]}}
+{"type":"message","id":"d","message":{"role":"toolResult","content":[{"type":"text","text":"Tool output"}]}}
+{"type":"session_name","name":"Not conversation text"}

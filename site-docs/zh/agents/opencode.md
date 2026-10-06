@@ -5,7 +5,7 @@ description: opencode 不用 JSONL，所有会话都在 ~/.local/share/opencode/
 
 # opencode 的会话记录存在哪
 
-opencode 是七个里的异类。别的 agent 都写你能 `grep` 的 JSONL 文件，opencode 把所有东西塞进一个 SQLite 库：
+此处支持的 opencode 布局把会话保存在 SQLite 库 `~/.local/share/opencode/opencode.db`；配置后改用 `$XDG_DATA_HOME/opencode/opencode.db`：
 
 ```
 ~/.local/share/opencode/opencode.db
@@ -81,6 +81,18 @@ GROUP BY p.worktree ORDER BY usd DESC;
 ## 为什么成本必须从库里取 {#cost-from-db}
 
 opencode 可以挂任意 provider：DeepSeek、OpenRouter、本地模型，什么都行。按模型名查价目表推不出一次调用的真实成本，所以每条 assistant 消息里记着的 `modelID` 和 `cost` 才是唯一可信的来源。
+
+## 怎么恢复这个会话
+
+在项目目录运行 `opencode --session SESSION_ID`，需要已安装 opencode。应用提供[终端恢复](/zh/features/resume)，不提供 opencode 内置对话。
+
+## 依据与限制
+
+实现依据：[opencode 适配器](https://github.com/jerrywu001/cc-sessions-viewer/blob/22fefc6/src-tauri/src/agents/opencode.rs)。上游：[opencode 文档](https://opencode.ai/docs/)。
+
+<!--@include: ../../.vitepress/snippets/reference-zh.md-->
+
+SQL 示例针对上述数据库结构，不覆盖旧的文件存储布局。只读查询不同于用户明确执行的重命名、回收、还原等数据库写入。见[找不到会话的排障指南](/zh/guide/troubleshooting)。
 
 ## 或者用应用打开
 

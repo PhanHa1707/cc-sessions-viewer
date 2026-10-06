@@ -16,7 +16,7 @@ Download the installer for your platform from the [releases page](https://github
 ## macOS: getting past Gatekeeper
 
 > [!IMPORTANT]
-> The macOS build is ad-hoc signed and not notarized, so Gatekeeper blocks the first launch with *"Apple could not verify 'Sessions Viewer' is free of malware."* That is the normal message for an unsigned open-source build, not a sign that something is wrong.
+> The macOS build is ad-hoc signed and not notarized, so Gatekeeper blocks the first launch with *"Apple could not verify 'Sessions Viewer' is free of malware."* This means Apple has not verified this build; it is not proof that the download is safe. Only proceed with an installer you deliberately downloaded from this project's release page.
 
 ### macOS 15 Sequoia and later
 
@@ -33,11 +33,13 @@ Control-click (or right-click) the app in Finder, choose **Open**, then click **
 
 ### From the terminal, on any macOS version
 
+Only for a trusted download: this removes the quarantine attribute and bypasses that Gatekeeper check. Prefer the System Settings flow above.
+
 ```bash
 xattr -dr com.apple.quarantine "/Applications/Sessions Viewer.app"
 ```
 
-Prefix the command with `sudo` if it reports `Operation not permitted`.
+If it reports `Operation not permitted`, check ownership and installation location; do not blindly grant elevated permissions.
 
 ## Linux
 
