@@ -1,0 +1,4 @@
+{
+  "extends": "../site-docs/tsconfig.json",
+  "include": ["DocsUsageTools.test.ts"]
+}

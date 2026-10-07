@@ -13,7 +13,7 @@ export const en: Locale = {
       { text: 'Guide', link: '/guide/', activeMatch: '/guide/' },
       { text: 'Features', link: '/features/read-and-search', activeMatch: '/features/' },
       { text: 'Agents', link: '/agents/', activeMatch: '/agents/' },
-      { text: 'Tool management', link: '/tools/', activeMatch: '/tools/' },
+      { text: 'Tools', link: '/tools/', activeMatch: '/tools/' },
       { text: 'Download', link: LATEST_RELEASE },
     ],
     sidebar: [
@@ -28,6 +28,13 @@ export const en: Locale = {
         { text: 'Codex workflow', link: '/guide/codex-session-viewer' },
         { text: 'Compatibility and samples', link: '/guide/compatibility' },
         { text: 'About and maintenance', link: '/guide/about' },
+        ],
+      },
+      {
+        text: 'Free browser tools',
+        items: [
+          { text: 'Claude Code cost calculator', link: '/tools/claude-code-cost-calculator' },
+          { text: 'Claude Code token counter', link: '/tools/claude-code-token-counter' },
         ],
       },
       {

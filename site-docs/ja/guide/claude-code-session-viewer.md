@@ -1,12 +1,18 @@
 ---
-title: Claude Code の履歴を検索・閲覧・保存・再開する方法
-description: Sessions ViewerでClaude Codeの古い入力を探し、ツール結果と差分を確認し、解析済み会話を保存してCLIまたは内蔵チャットへ戻る手順。
+title: Claude Code 履歴ビューア — セッション検索・保存・再開
+description: Sessions Viewer で Claude Code 履歴をプロジェクト別に検索し、ツール結果を読み、解析済み会話を保存して再開。ローカル使用量集計とコスト計算も試せます。
 image: /screenshots/search.png
 ---
 
-# Claude Code の会話を探して続ける
+# Claude Code 履歴ビューア：検索・保存・再開 {#claude-code-の会話を探して続ける}
 
 内容は覚えていても JSONL の場所が分からないとき、Sessions Viewer でローカル履歴をプロジェクト別に検索し、ツール結果を見て Claude Code に戻れます。[インストール](/ja/guide/install)してください。独立したオープンソースアプリで、Anthropic の公式製品ではありません。
+
+## インストール前にローカル集計・コスト計算 {#browser-tools}
+
+まず使用量を確認するには：
+
+[Claude Code コスト計算機](/ja/tools/claude-code-cost-calculator) · [Claude Code トークンカウンター](/ja/tools/claude-code-token-counter)
 
 ## 1. プロジェクトと入力を探す {#find}
 

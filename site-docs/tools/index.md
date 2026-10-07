@@ -12,6 +12,12 @@ The tool management panel shows all of it in one place and lets you fix it. Open
 
 For a focused task, follow [share a skill and repair links](/tools/share-skills) or [check MCP configuration and loading scope](/tools/check-mcp).
 
+## Free browser tools {#browser-tools}
+
+For recorded usage rather than agent configuration, try these free browser tools:
+
+[Claude Code cost calculator](/tools/claude-code-cost-calculator) · [Claude Code token counter](/tools/claude-code-token-counter)
+
 ## Skills {#skills}
 
 ![The skills panel, with a summary bar counting duplicated, detoured and dead skills](/screenshots/tools-skills.png)

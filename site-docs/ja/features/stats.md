@@ -1,14 +1,20 @@
 ---
-title: コーディングエージェントのトークン使用量と推定コスト
-description: 記録された Claude Code・Codex の使用量、価格推定、opencode の記録コスト、欠落フィールド、契約の利用枠と請求の違いを説明します。
+title: Claude Code 使用量トラッカーと Codex トークン統計
+description: Sessions Viewer で Claude Code と Codex の記録トークンをプロジェクト・モデル・期間ごとに追跡。API 推定コスト、欠落項目と契約上限の違いを確認します。
 image: /screenshots/stats.png
 ---
 
-# トークン使用量と推定コスト
+# Claude Code と Codex の使用量追跡 {#トークン使用量と推定コスト}
 
 Sessions Viewer が集計するのは**記録済みの使用量**で、プロバイダの請求書ではありません。`⌘⇧S` で統計を開き、プロジェクト、モデル、ツール、期間を比較できます。使用量がないことは無料の証明ではなく、対応する Antigravity CLI の形式にはトークンフィールドがありません。
 
 ![プロジェクト・モデル別の使用量とコスト](/screenshots/stats.png)
+
+## インストール前にローカル集計・コスト計算 {#browser-tools}
+
+1 つの Claude ファイルは下のブラウザーツールで確認できます。プロジェクト、モデル、期間の比較にはデスクトップ統計を使えます。ツール入力はローカル処理で、アップロードしません。
+
+[Claude Code コスト計算機](/ja/tools/claude-code-cost-calculator) · [Claude Code トークンカウンター](/ja/tools/claude-code-token-counter)
 
 ## 比較できる項目 {#usage-breakdown}
 

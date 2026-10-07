@@ -3,6 +3,7 @@ import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { JSDOM } from 'jsdom'
 import { auditPage, auditRobots, auditSitemap } from './seo-audit.mjs'
+import { auditUtility } from './utility-audit.mjs'
 
 const src = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const dist = join(src, '.vitepress/dist')
@@ -24,7 +25,7 @@ for (const relativePath of pages) {
   try {
     dom = new JSDOM(readFileSync(join(dist, relativePath.replace(/\.md$/, '.html')), 'utf8'))
     const document = dom.window.document
-    for (const error of auditPage(document, { relativePath, pages, siteUrl })) bad.push(`${relativePath}: ${error}`)
+    for (const error of [...auditPage(document, { relativePath, pages, siteUrl }), ...auditUtility(document, relativePath)]) bad.push(`${relativePath}: ${error}`)
     for (const [label, value, seen] of [
       ['title', document.title, titles],
       ['description', document.querySelector('meta[name="description"]')?.content, descriptions],
@@ -63,4 +64,4 @@ if (bad.length) {
   console.error(`[check-seo] ${bad.length} failed checks:\n${bad.map((line) => '  - ' + line).join('\n')}`)
   process.exit(1)
 }
-console.log(`[check-seo] ${pages.size} content pages: metadata, static content, language parity, links, JSON-LD, sitemap, robots and public samples passed`)
+console.log(`[check-seo] ${pages.size} content pages: metadata, static content, language parity, links, JSON-LD, sitemap, robots, utility SSR and public samples passed`)

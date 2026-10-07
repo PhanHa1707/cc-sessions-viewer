@@ -13,7 +13,7 @@ export const zh: Locale = {
       { text: '指南', link: '/zh/guide/', activeMatch: '/zh/guide/' },
       { text: '功能', link: '/zh/features/read-and-search', activeMatch: '/zh/features/' },
       { text: 'Agents', link: '/zh/agents/', activeMatch: '/zh/agents/' },
-      { text: '工具管理', link: '/zh/tools/', activeMatch: '/zh/tools/' },
+      { text: '工具', link: '/zh/tools/', activeMatch: '/zh/tools/' },
       { text: '下载', link: LATEST_RELEASE },
     ],
     sidebar: [
@@ -28,6 +28,13 @@ export const zh: Locale = {
         { text: 'Codex 使用流程', link: '/zh/guide/codex-session-viewer' },
         { text: '兼容范围与样例', link: '/zh/guide/compatibility' },
         { text: '项目与维护说明', link: '/zh/guide/about' },
+        ],
+      },
+      {
+        text: '免费浏览器工具',
+        items: [
+          { text: 'Claude Code 成本计算器', link: '/zh/tools/claude-code-cost-calculator' },
+          { text: 'Claude Code Token 计数器', link: '/zh/tools/claude-code-token-counter' },
         ],
       },
       {

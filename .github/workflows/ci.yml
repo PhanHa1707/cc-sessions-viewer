@@ -37,7 +37,7 @@ jobs:
         run: npm run test:run
 
   docs:
-    name: docs (commands + SEO + links)
+    name: docs (commands + utilities + SEO + links)
     runs-on: ubuntu-latest
     if: ${{ !startsWith(github.event.head_commit.message, 'Release:') }}
     steps:
@@ -49,8 +49,8 @@ jobs:
       - run: npm ci
       - name: Install documentation command tools
         run: sudo apt-get update && sudo apt-get install -y jq sqlite3
-      - name: Test documented commands and audit guards
-        run: npm run docs:test
+      - name: Test documented commands, browser utilities and audit guards
+        run: npm run docs:test && npm run docs:test:ui
       - name: Build and check static SEO and links
         run: npm run docs:build
 

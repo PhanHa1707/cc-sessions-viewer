@@ -1,14 +1,20 @@
 ---
-title: Coding agent Token 用量与估算成本统计
-description: 区分 Claude Code、Codex 等 agent 的已记录用量、模型价格估算、opencode 记录成本、缺失字段和订阅额度，不把统计当成账单。
+title: Claude Code 用量跟踪与 Codex Token 统计
+description: 用 Sessions Viewer 按项目、模型、时间跟踪 Claude Code 与 Codex 记录的 Token 用量，区分 API 成本估算、缺失字段和订阅限制。
 image: /screenshots/stats.png
 ---
 
-# Token 用量与估算成本
+# Claude Code 与 Codex 用量跟踪 {#token-用量与估算成本}
 
 Sessions Viewer 汇总的是**已记录用量**，不是服务商账单。按 `⌘⇧S` 打开统计，可对比项目、模型、工具和时间。缺少用量字段不代表免费：此处支持的 Antigravity CLI 格式没有 Token 字段。
 
 ![按项目和模型拆分的用量与成本统计](/screenshots/stats.png)
+
+## 安装前先试本地统计或成本估算 {#browser-tools}
+
+单个 Claude 文件可以先用下面的浏览器工具；按项目、模型、时间比较仍可使用桌面统计。工具输入只在本地处理，不上传。
+
+[Claude Code 成本计算器](/zh/tools/claude-code-cost-calculator) · [Claude Code Token 计数器](/zh/tools/claude-code-token-counter)
 
 ## 可以对比什么 {#usage-breakdown}
 

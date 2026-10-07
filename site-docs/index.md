@@ -56,6 +56,12 @@ Sessions Viewer is a free, MIT-licensed desktop app for macOS, Windows and Linux
 
 Looking for a specific answer? [Compare paths, formats and resume commands](/agents/), [troubleshoot a missing session](/guide/troubleshooting), or [check privacy and network behavior](/guide/privacy).
 
+## Try a free browser tool {#browser-tools}
+
+Calculate a token-price scenario or inspect saved usage before installing the desktop app.
+
+- [Claude Code cost calculator](/tools/claude-code-cost-calculator) · [Claude Code token counter](/tools/claude-code-token-counter)
+
 ## Task guides and evidence {#task-guides}
 
 - [Find, read, export and continue a Claude Code session](/guide/claude-code-session-viewer)

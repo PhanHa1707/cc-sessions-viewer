@@ -1,0 +1,36 @@
+.sv-utility { margin: 24px 0; padding: 24px; border: 1px solid var(--vp-c-divider); border-radius: 8px; background: var(--vp-c-bg); }
+.sv-utility, .sv-utility * { box-sizing: border-box; }
+.sv-utility label { display: block; margin-bottom: 6px; color: var(--vp-c-text-1); font-size: 14px; font-weight: 600; line-height: 1.5; }
+.sv-utility input, .sv-utility select, .sv-utility textarea { display: block; width: 100%; min-width: 0; min-height: 44px; padding: 10px 12px; border: 1px solid var(--vp-c-text-3); border-radius: 5px; background: var(--vp-c-bg-alt); color: var(--vp-c-text-1); font: inherit; font-size: 16px; }
+.sv-utility select, .sv-utility button, .sv-utility summary { cursor: pointer; }
+.sv-utility input[type=file] { margin-bottom: 20px; font-size: 14px; }
+.sv-utility textarea { resize: vertical; font-family: var(--vp-font-family-mono); font-size: 14px; line-height: 1.6; }
+.sv-utility fieldset { margin: 20px 0; padding: 0; border: 0; min-width: 0; }
+.sv-utility legend { margin-bottom: 12px; font-size: 16px; font-weight: 600; }
+.sv-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.sv-utility details { margin: 16px 0; }
+.sv-utility summary { min-height: 44px; padding: 10px 0; font-weight: 600; }
+.sv-utility .sv-note { margin: 12px 0; color: var(--vp-c-text-2); font-size: 14px; line-height: 1.6; }
+.sv-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 20px; }
+.sv-actions button { min-height: 44px; padding: 10px 16px; border: 1px solid var(--vp-c-divider); border-radius: 5px; background: var(--vp-c-bg-alt); color: var(--vp-c-text-1); font-size: 14px; font-weight: 600; transition: background-color 150ms; }
+.sv-actions button:hover { background: var(--vp-c-default-soft); }
+.sv-actions .sv-primary { background: var(--vp-button-brand-bg); border-color: var(--vp-button-brand-border); color: var(--vp-button-brand-text); }
+.sv-actions .sv-primary:hover { background: var(--vp-button-brand-hover-bg); }
+.sv-actions button:disabled { opacity: .65; cursor: wait; }
+.sv-utility :is(input, select, textarea, button, summary, a):focus-visible { outline: 3px solid var(--vp-c-brand-1); outline-offset: 3px; }
+.sv-utility [aria-invalid=true] { border-color: var(--vp-c-danger-1); }
+.sv-utility .sv-error { padding: 12px; border: 1px solid var(--vp-c-danger-1); border-radius: 5px; color: var(--vp-c-danger-1); font-size: 14px; }
+.sv-result { margin-top: 24px; padding-top: 12px; border-top: 1px solid var(--vp-c-divider); }
+.sv-totals { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; margin: 16px 0; }
+.sv-totals dt { color: var(--vp-c-text-2); font-size: 14px; }
+.sv-totals dd { margin: 6px 0; color: var(--vp-c-text-1); font-size: 26px; font-weight: 600; overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
+.sv-table-wrap { overflow-x: auto; }
+.sv-table-wrap:focus-visible { outline: 3px solid var(--vp-c-brand-1); outline-offset: 3px; }
+.sv-utility table { margin: 0; font-size: 14px; }
+.sv-utility caption { padding: 10px 0; text-align: left; font-weight: 600; }
+.sv-utility td { font-variant-numeric: tabular-nums; }
+.sv-diagnostics { margin: 12px 0; font-size: 14px; }
+.sv-diagnostics > div { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 16px; padding: 6px 0; }
+.sv-diagnostics dd { margin: 0; font-variant-numeric: tabular-nums; }
+@media (max-width: 600px) { .sv-utility { padding: 16px; } .sv-fields, .sv-totals { grid-template-columns: minmax(0, 1fr); } }
+@media (prefers-reduced-motion: reduce) { .sv-actions button { transition: none; } }

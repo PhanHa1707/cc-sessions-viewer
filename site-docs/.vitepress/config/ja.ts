@@ -13,7 +13,7 @@ export const ja: Locale = {
       { text: 'ガイド', link: '/ja/guide/', activeMatch: '/ja/guide/' },
       { text: '機能', link: '/ja/features/read-and-search', activeMatch: '/ja/features/' },
       { text: 'Agents', link: '/ja/agents/', activeMatch: '/ja/agents/' },
-      { text: 'ツール管理', link: '/ja/tools/', activeMatch: '/ja/tools/' },
+      { text: 'ツール', link: '/ja/tools/', activeMatch: '/ja/tools/' },
       { text: 'ダウンロード', link: LATEST_RELEASE },
     ],
     sidebar: [
@@ -28,6 +28,13 @@ export const ja: Locale = {
         { text: 'Codex の使い方', link: '/ja/guide/codex-session-viewer' },
         { text: '対応範囲とサンプル', link: '/ja/guide/compatibility' },
         { text: 'プロジェクトと保守', link: '/ja/guide/about' },
+        ],
+      },
+      {
+        text: '無料ブラウザーツール',
+        items: [
+          { text: 'Claude Code コスト計算機', link: '/ja/tools/claude-code-cost-calculator' },
+          { text: 'Claude Code トークンカウンター', link: '/ja/tools/claude-code-token-counter' },
         ],
       },
       {

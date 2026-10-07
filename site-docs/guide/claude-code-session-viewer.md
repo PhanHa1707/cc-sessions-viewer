@@ -1,12 +1,18 @@
 ---
-title: How to find, read, export and resume Claude Code sessions
-description: A local Claude Code session-viewer workflow for finding old prompts, inspecting tool results, exporting parsed conversations and resuming with the CLI or in-app chat.
+title: Claude Code History Viewer — Search, Export and Resume Sessions
+description: Find and search Claude Code history by project, read tool results, export parsed sessions and resume with Sessions Viewer. Includes local token-counting and cost tools.
 image: /screenshots/search.png
 ---
 
-# Find and continue a Claude Code session
+# Claude Code history viewer: search, export and resume {#find-and-continue-a-claude-code-session}
 
 Use Sessions Viewer when you remember what a Claude Code conversation was about but not which JSONL file contains it. It groups local history by project, searches messages, replays supported tool results and can hand a session back to Claude Code. Install from [the release page](/guide/install); this is an independent open-source app, not an Anthropic product.
+
+## Try counting or calculating before installing {#browser-tools}
+
+Want to inspect usage first?
+
+[Claude Code cost calculator](/tools/claude-code-cost-calculator) · [Claude Code token counter](/tools/claude-code-token-counter)
 
 ## 1. Find the project and the prompt {#find}
 

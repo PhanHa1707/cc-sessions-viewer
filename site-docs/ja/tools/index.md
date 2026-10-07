@@ -12,6 +12,12 @@ image: /screenshots/tools-skills.png
 
 目的別の手順は[スキル共有とリンク修復](/ja/tools/share-skills)、[MCP 設定と読み込み範囲の確認](/ja/tools/check-mcp)を参照してください。
 
+## 無料ブラウザーツール {#browser-tools}
+
+エージェント設定ではなく記録使用量を調べる場合、無料ブラウザーツールを試せます：
+
+[Claude Code コスト計算機](/ja/tools/claude-code-cost-calculator) · [Claude Code トークンカウンター](/ja/tools/claude-code-token-counter)
+
 ## Skills {#skills}
 
 ![Skills パネル。上部のバーに重複・遠回り・リンク切れの skill の数が出ている](/screenshots/tools-skills.png)

@@ -56,6 +56,12 @@ Sessions Viewer 是免费的 MIT 开源桌面应用，支持 macOS、Windows、L
 
 有具体问题？查看[路径、格式与恢复命令对比](/zh/agents/)、[找不到会话的排障指南](/zh/guide/troubleshooting)或[隐私与联网行为](/zh/guide/privacy)。
 
+## 先试用免费浏览器工具 {#browser-tools}
+
+安装桌面应用前，先计算 Token 价格情景或检查保存的记录用量。
+
+- [Claude Code 成本计算器](/zh/tools/claude-code-cost-calculator) · [Claude Code Token 计数器](/zh/tools/claude-code-token-counter)
+
 ## 任务指南与验证依据 {#task-guides}
 
 - [查找、阅读、导出并继续 Claude Code 会话](/zh/guide/claude-code-session-viewer)

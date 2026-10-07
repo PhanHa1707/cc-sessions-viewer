@@ -1,5 +1,5 @@
-// 默认主题 + 一份配色覆盖。目前没有自定义组件，等 agents / features 那几页
-// 需要「按平台给下载按钮」之类的交互时再往 components/ 里加。
+// 默认主题与品牌配色。浏览器用量工具由各自 Markdown 页按需导入，
+// 不在全站注册，避免无关页面加载计算器与 JSONL 解析逻辑。
 import DefaultTheme from 'vitepress/theme'
 import type { Theme } from 'vitepress'
 import './style.css'

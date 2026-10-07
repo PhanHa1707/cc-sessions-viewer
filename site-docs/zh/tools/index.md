@@ -12,6 +12,12 @@ image: /screenshots/tools-skills.png
 
 具体操作可看[复用 skill 与修复链接](/zh/tools/share-skills)或[检查 MCP 配置及加载范围](/zh/tools/check-mcp)。
 
+## 免费浏览器工具 {#browser-tools}
+
+如果要检查记录用量而非 agent 配置，可以先试免费浏览器工具：
+
+[Claude Code 成本计算器](/zh/tools/claude-code-cost-calculator) · [Claude Code Token 计数器](/zh/tools/claude-code-token-counter)
+
 ## Skills {#skills}
 
 ![Skills 面板，顶部的汇总条统计了重复、绕路和指向不存在位置的 skill](/screenshots/tools-skills.png)

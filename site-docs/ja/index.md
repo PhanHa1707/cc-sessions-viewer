@@ -56,6 +56,12 @@ Sessions Viewer は macOS、Windows、Linux 向けの無料 MIT オープンソ�
 
 [保存先・形式・再開方法の比較](/ja/agents/)、[見つからない履歴の確認手順](/ja/guide/troubleshooting)、[通信とプライバシー](/ja/guide/privacy)から目的に合うページへ進めます。
 
+## 無料のブラウザーツールを試す {#browser-tools}
+
+デスクトップアプリを入れる前に料金シナリオを計算し、保存済み使用量を確認できます。
+
+- [Claude Code コスト計算機](/ja/tools/claude-code-cost-calculator) · [Claude Code トークンカウンター](/ja/tools/claude-code-token-counter)
+
 ## 目的別の手順と根拠 {#task-guides}
 
 - [Claude Code 履歴の検索・閲覧・保存・続行](/ja/guide/claude-code-session-viewer)

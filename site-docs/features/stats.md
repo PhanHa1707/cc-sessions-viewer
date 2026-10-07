@@ -1,14 +1,20 @@
 ---
-title: Track coding-agent token usage and estimated cost
-description: Understand recorded Claude Code and Codex usage, model-price estimates, opencode recorded costs, missing usage fields and subscription quotas in Sessions Viewer.
+title: Claude Code Usage Tracker and Codex Token Usage
+description: Track recorded Claude Code and Codex token usage by project, model and time in Sessions Viewer. Understand API cost estimates, missing fields and subscription limits.
 image: /screenshots/stats.png
 ---
 
-# Token usage and estimated cost
+# Claude Code usage tracker and Codex token usage {#token-usage-and-estimated-cost}
 
 Sessions Viewer aggregates **recorded usage**, not your provider's invoice. Open statistics with `⌘⇧S` to compare projects, models, tools and time periods. Missing usage is not proof of a free call: the supported Antigravity CLI format contains no token fields.
 
 ![Token and cost analytics broken down by project and model](/screenshots/stats.png)
+
+## Try counting or calculating before installing {#browser-tools}
+
+For one saved Claude file, use the browser tools below. Desktop statistics remain useful for project/model/time comparisons; tool input is processed locally, not uploaded.
+
+[Claude Code cost calculator](/tools/claude-code-cost-calculator) · [Claude Code token counter](/tools/claude-code-token-counter)
 
 ## What can I compare? {#usage-breakdown}
 

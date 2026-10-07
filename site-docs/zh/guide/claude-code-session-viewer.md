@@ -1,12 +1,18 @@
 ---
-title: 如何查找、阅读、导出与恢复 Claude Code 会话
-description: 用 Sessions Viewer 按项目搜索 Claude Code 历史提问、核对工具结果与差异，导出解析后的消息，再通过CLI或内置对话继续原任务。
+title: Claude Code 历史记录查看器 — 搜索、导出与恢复会话
+description: 用 Sessions Viewer 按项目查找和搜索 Claude Code 历史记录，核对工具结果、导出解析后的会话并恢复任务，也可先试本地 Token 统计和成本工具。
 image: /screenshots/search.png
 ---
 
-# 找回并继续 Claude Code 会话
+# Claude Code 历史记录查看器：搜索、导出与恢复 {#找回并继续-claude-code-会话}
 
 记得对话内容却不知道是哪份 JSONL 时，可以用 Sessions Viewer 按项目浏览本地历史、搜索消息、查看工具结果，再交回 Claude Code 继续。[下载安装](/zh/guide/install)后即可浏览。这是独立开源应用，不是 Anthropic 官方产品。
+
+## 安装前先试本地统计或成本估算 {#browser-tools}
+
+想先查看用量？
+
+[Claude Code 成本计算器](/zh/tools/claude-code-cost-calculator) · [Claude Code Token 计数器](/zh/tools/claude-code-token-counter)
 
 ## 1. 找项目和原始提问 {#find}
 
