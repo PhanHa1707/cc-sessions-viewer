@@ -1,6 +1,6 @@
 ---
 title: opencode のセッション履歴の保存場所
-description: opencode は JSONL を使いません。すべてのセッションは ~/.local/share/opencode/opencode.db という単一の SQLite データベースにあります。スキーマ、主要な 4 テーブル、記録を読む SQL。
+description: opencode の対応 SQLite 履歴と XDG パスを確認し、SQL で記録を読みます。Sessions Viewer でプロンプトを検索し、保存・ターミナル再開する方法も説明します。
 ---
 
 # opencode のセッション履歴の保存場所
@@ -13,7 +13,7 @@ description: opencode は JSONL を使いません。すべてのセッション
 
 XDG Base Directory 仕様に従うため、`$XDG_DATA_HOME` が設定されていれば `$XDG_DATA_HOME/opencode/opencode.db` が優先されます。多くのアプリが `~/Library/Application Support` を使う macOS でも同じです。
 
-セッションごとのファイルは存在しません。ホームディレクトリを `grep -r` しても opencode の会話は見つかりません。たいていの人はこうしてこの事実に気づきます。
+この対応形式ではセッションは個別の JSONL ではなくデータベースの行です。再帰的なテキスト検索に頼らず SQLite で照会してください。古いファイル形式はこのアダプターの対象外です。
 
 ## 主要な 4 テーブル
 
@@ -32,14 +32,14 @@ part     -- id（"prt_…"）、message_id、session_id、time_created、data（
 
 ## サブエージェントのセッション
 
-`parent_id` が非 NULL のセッションは、別のセッションから派生したサブエージェントの実行です。実際に課金される API 呼び出しですが、自分で始めた会話ではありません。「自分のセッション一覧」を出すものはこれらを除外すべきで、支出を合計するものは必ず含める必要があります。
+`parent_id` が非 NULL のセッションは、別のセッションから派生したサブエージェントの実行です。通常の履歴一覧では非表示ですが、統計には記録済みの作業を含めます。使用量とコストを持つ場合がある一方、ローカルモデル、料金設定、欠落フィールドで記録コストがゼロになることもあります。別途課金された API 呼び出しの証拠ではありません。
 
 ## 読み取り専用で開く
 
-読んでいる間に opencode の TUI が書き込んでいる可能性があります。SQLite の WAL モードにより並行読み取りは安全ですが、読み取り専用で開き、書き込みロックを取らないことが前提です：
+確認中に opencode の TUI が書き込んでいる可能性があります。意図しない変更を避けるため読み取り専用で開きます。使用中のデータベースでは、処理が落ち着いてから再試行が必要な場合もあります。次のコマンドは設定済みの XDG 保存先にも従います：
 
 ```bash
-sqlite3 "file:$HOME/.local/share/opencode/opencode.db?mode=ro" ".tables"
+sqlite3 "file:${XDG_DATA_HOME:-$HOME/.local/share}/opencode/opencode.db?mode=ro" ".tables"
 ```
 
 ## opencode の記録を SQL で読む
@@ -68,7 +68,7 @@ WHERE m.session_id = 'ses_...'
 ORDER BY m.time_created, pt.time_created;
 ```
 
-プロジェクト別の合計支出：
+プロジェクト別の記録済みセッションコスト：
 
 ```sql
 SELECT p.worktree, ROUND(SUM(s.cost), 2) AS usd, COUNT(*) AS sessions
@@ -76,19 +76,25 @@ FROM session s JOIN project p ON p.id = s.project_id
 GROUP BY p.worktree ORDER BY usd DESC;
 ```
 
-最後のクエリは意図的にサブエージェントのセッションを含めています。それも請求の一部だからです。
+最後のクエリはサブエージェント行を含めます。保存された `session.cost` の合計であり、プロバイダーの請求書ではありません。デスクトップ統計は assistant メッセージのコストを読み、欠落・不整合があると両者の合計は一致しない場合があります。
 
 ## コストをデータベースから取る理由 {#cost-from-db}
 
-opencode は任意のプロバイダを指せます。DeepSeek、OpenRouter、ローカルモデル、何でもです。モデル名を引く価格表では実際の呼び出しコストを再構成できないため、assistant メッセージごとに記録された実際の `modelID` と `cost` だけが信頼できる情報源です。
+opencode は各種プロバイダーやローカルモデルを使えます。モデル名だけの価格表が実際の設定と合うとは限りません。ビューアは assistant メッセージの `modelID`、`tokens`、`cost` を読み、アプリの価格表で再計算しません。数値コストがない場合は現在ゼロとして扱いますが、未測定であって無料の確認ではありません。記録コストは独立検証済みの請求書ではなく、財務判断ではプロバイダーの実際のレポートと照合してください。[使用量とコストの制限](/ja/features/stats#cost-vs-bill)を参照できます。
 
 ## セッションを再開するには
 
 opencode をインストールし、プロジェクトのディレクトリで `opencode --session SESSION_ID` を実行します。アプリは[ターミナルでの再開](/ja/features/resume)に対応し、opencode の内蔵チャットには対応していません。
 
+## opencode 履歴の閲覧と検索 {#view-and-search}
+
+[Sessions Viewer をインストール](/ja/guide/install)し、opencode とプロジェクトを選ぶと対応 SQLite セッションを読めます。`⌘⇧F`（macOS）または `Ctrl+Shift+F`（Windows/Linux）で opencode のプロジェクトを横断し、タイトルとユーザープロンプトを検索できます。ID モードも利用できます。回答とツール出力は対象外です。[検索範囲](/ja/features/read-and-search#search-scope)を確認してください。
+
+機密内容を確認して Markdown、HTML、解析済みメッセージ JSON を保存できます。完全な保存には元データベースを残します。[保存の制限](/ja/features/export-and-trash)には外部画像や読めない画像も含まれます。続行はインストール済み opencode CLI のターミナル再開であり、opencode のアプリ内チャットではありません。Sessions Viewer は独立したオープンソースプロジェクトで、opencode の公式製品ではありません。再開・共有前に[プライバシー](/ja/guide/privacy)を確認してください。
+
 ## 根拠と制限
 
-実装：[opencode アダプター](https://github.com/jerrywu001/cc-sessions-viewer/blob/22fefc6/src-tauri/src/agents/opencode.rs)。上流：[opencode ドキュメント](https://opencode.ai/docs/)。
+パス・記録コスト・操作説明は 2026-10-06 に [0.6.0 opencode アダプター](https://github.com/jerrywu001/cc-sessions-viewer/blob/69e0b4f/src-tauri/src/agents/opencode.rs)と[検索処理](https://github.com/jerrywu001/cc-sessions-viewer/blob/69e0b4f/src-tauri/src/agents/mod.rs)で確認しました。ソースと合成テストの範囲で、実際の CLI 動作認証ではありません。上流：[opencode ドキュメント](https://opencode.ai/docs/)。
 
 <!--@include: ../../.vitepress/snippets/reference-ja.md-->
 

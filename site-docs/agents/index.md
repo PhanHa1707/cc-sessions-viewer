@@ -1,6 +1,6 @@
 ---
-title: Coding agent session history — locations, formats and resume commands
-description: Compare where Claude Code, Codex, Grok Build, Kimi Code, Pi, Antigravity CLI and opencode store sessions, how to resume them, and what Sessions Viewer supports.
+title: "Agent Session History: Paths and Resume"
+description: Compare session paths, formats and resume commands for seven coding agents, including Claude Code, Codex and opencode. See supported roots and viewer limits.
 ---
 
 # Where coding agents store session history

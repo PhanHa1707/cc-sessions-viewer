@@ -1,12 +1,12 @@
 ---
-title: Claude Code History Viewer — Search, Export and Resume Sessions
-description: Find and search Claude Code history by project, read tool results, export parsed sessions and resume with Sessions Viewer. Includes local token-counting and cost tools.
+title: Claude Code History Viewer
+description: Find Claude Code history by project, search saved prompts, export parsed sessions and resume locally. Includes token usage tools and privacy limits.
 image: /screenshots/search.png
 ---
 
 # Claude Code history viewer: search, export and resume {#find-and-continue-a-claude-code-session}
 
-Use Sessions Viewer when you remember what a Claude Code conversation was about but not which JSONL file contains it. It groups local history by project, searches messages, replays supported tool results and can hand a session back to Claude Code. Install from [the release page](/guide/install); this is an independent open-source app, not an Anthropic product.
+Use Sessions Viewer when you remember what a Claude Code conversation was about but not which JSONL file contains it. It groups local history by project, searches saved user prompts, replays supported tool results and can hand a session back to Claude Code. Install from [the release page](/guide/install); this is an independent open-source app, not an Anthropic product.
 
 ## Try counting or calculating before installing {#browser-tools}
 
@@ -16,8 +16,8 @@ Want to inspect usage first?
 
 ## 1. Find the project and the prompt {#find}
 
-1. Open Sessions Viewer and choose the project's history view.
-2. Use global search (`⌘⇧F` on macOS) for a distinctive phrase from the conversation. Selecting a match opens the session and jumps to that message.
+1. Open Sessions Viewer, select Claude Code and choose the project's history view.
+2. Use global search (`⌘⇧F` on macOS) for a distinctive phrase from your saved user prompts, or search a session title/ID. Text matches open the matching user message; assistant answers and tool output are not global-search inputs. See [search scope](/features/read-and-search#search-scope).
 3. If you know the session but not the point in it, use the prompt list or in-view search (`⌘F`). For other platforms, see [shortcut labels](/features/shortcuts).
 
 ![Global search finds matching messages across local projects](/screenshots/search.png)
@@ -34,7 +34,7 @@ Reading and searching do not rewrite the original transcript. Renaming, trash/re
 
 ## 3. Export an answer, not a native-file backup {#export}
 
-Use the session export action: Markdown for readable notes, HTML for an offline page, or JSON for parsed messages. Review the output before sharing: prompts, code, file paths and tool output can contain private data. The export is not a byte-for-byte backup of Claude's JSONL; retain native files if you need one. See [export options](/features/export-and-trash).
+Use the session export action: Markdown for readable notes, HTML for a readable page, or JSON for parsed messages. Remote or unreadable images may remain external, so not every export is fully usable offline. Review the output before sharing: prompts, code, file paths and tool output can contain private data. The export is not a byte-for-byte backup of Claude's JSONL; retain native files if you need one. See [export options](/features/export-and-trash).
 
 ## 4. Resume the existing work {#resume}
 

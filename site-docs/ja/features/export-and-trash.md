@@ -1,6 +1,6 @@
 ---
 title: エクスポートとゴミ箱
-description: Markdown・HTML・解析済みJSONの書き出しと画像の可搬性の制限を説明します。ゴミ箱への移動と復元は明示的なデータ変更です。
+description: Markdown・HTML・JSON を書き出し、Pi のネイティブエントリーツリーと通常の解析メッセージの違い、画像の可搬性、ゴミ箱と復元による変更を説明します。
 image: /screenshots/export.png
 ---
 
@@ -18,7 +18,13 @@ image: /screenshots/export.png
 | --- | --- |
 | Markdown | issue や PR、ドキュメントへの貼り付け |
 | HTML | インラインのスタイルでブラウザ閲覧。画像の可搬性は参照元に依存 |
-| JSON | ビューアが解析したメッセージとメタデータを保存。ネイティブファイル全体のバックアップではない |
+| JSON | 通常は解析メッセージとメタデータ。Pi は以下のネイティブエントリーツリー形式です。元ファイルのバイト単位バックアップではありません |
+
+### Pi JSON は何が違いますか {#pi-json}
+
+Pi の JSON メニューと一括保存は、通常の解析メッセージではなく、ビューア固有の `cc-session-viewer-pi-export` エンベロープを使います。`header`、記録済み全分岐の有効な ID 付きネイティブ `entries`、`selectedLeafId` を含みます。Markdown／HTML は選択した会話の系列を表示します。
+
+保存するのはエントリーのオブジェクトであり、元 JSONL のバイト列ではありません。不正な JSON 行や認識できる ID のない行は省かれます。外部メディアは同梱せず、Pi CLI がこの JSON を直接取り込めることも認証していません。完全な保存には元記録とリソースを残します。2026-10-06 に [Pi の保存処理](https://github.com/jerrywu001/cc-sessions-viewer/blob/69e0b4f/src-tauri/src/agents/pi.rs)、[単体・一括処理](https://github.com/jerrywu001/cc-sessions-viewer/blob/69e0b4f/src/App.vue)、[ファイル書き込み](https://github.com/jerrywu001/cc-sessions-viewer/blob/69e0b4f/src/export.ts)で確認しました。実際の CLI 往復テストではありません。
 
 ### すべての画像をオフラインで読めますか {#offline-images}
 

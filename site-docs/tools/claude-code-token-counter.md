@@ -1,6 +1,6 @@
 ---
-title: Claude Code Token Counter — Count Recorded JSONL Usage Locally
-description: Count recorded Claude Code input, output and cache tokens from JSONL in your browser. Coalesce duplicate message IDs and see missing or malformed usage without uploading a transcript.
+title: Claude Code Token Counter
+description: Count recorded Claude Code JSONL token usage locally in your browser. Merge duplicate message IDs and flag missing usage; no transcript uploads.
 ---
 
 <script setup>

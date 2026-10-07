@@ -1,6 +1,6 @@
 ---
-title: Where opencode stores session history
-description: opencode keeps every session in one SQLite database at ~/.local/share/opencode/opencode.db. The schema, the four tables that matter, and SQL to read it.
+title: "opencode Session History: SQLite Paths and Viewer"
+description: Find opencode's supported SQLite history, check XDG paths, read sessions with SQL and use Sessions Viewer to search prompts, export and resume.
 ---
 
 # Where opencode stores session history
@@ -13,7 +13,7 @@ The opencode layout supported here stores sessions in a SQLite database at `~/.l
 
 It follows the XDG base directory spec, so `$XDG_DATA_HOME/opencode/opencode.db` wins if that variable is set. That applies on macOS too, where most apps would use `~/Library/Application Support`.
 
-There are no per-session files. A `grep -r` across your home directory will not find an opencode conversation, which is usually how people discover this.
+In this supported layout, sessions are database rows rather than individual JSONL files. Query SQLite to inspect them instead of assuming a recursive text search can extract a conversation. Older file-based layouts are outside this adapter's scope.
 
 ## The four tables that matter
 
@@ -32,14 +32,14 @@ The database has more tables (`workspace`, `todo`, `permission`, `event`, `crede
 
 ## Sub-agent sessions
 
-A session with a non-null `parent_id` is a sub-agent run spawned by another session. These are real API calls that cost real money, but they are not conversations you started. Anything listing "your sessions" should filter them out, and anything totalling spend must include them.
+A session with a non-null `parent_id` is a sub-agent run spawned by another session. The viewer hides these from the ordinary history list but includes their recorded work in statistics. They can contain usage and costs; a local model, provider pricing or missing fields can yield zero recorded cost. A sub-agent run is not proof of a separately billed API call.
 
 ## Open it read-only
 
-opencode's TUI may be writing to this database while you read it. SQLite's WAL mode makes concurrent reads safe, but only if you open read-only and do not hold a write lock:
+opencode's TUI may be writing while you inspect the database. Use a read-only connection to avoid accidental writes; busy or changing databases can still require retrying after activity settles. The command also respects a configured XDG data root:
 
 ```bash
-sqlite3 "file:$HOME/.local/share/opencode/opencode.db?mode=ro" ".tables"
+sqlite3 "file:${XDG_DATA_HOME:-$HOME/.local/share}/opencode/opencode.db?mode=ro" ".tables"
 ```
 
 ## Reading an opencode transcript with SQL
@@ -68,7 +68,7 @@ WHERE m.session_id = 'ses_...'
 ORDER BY m.time_created, pt.time_created;
 ```
 
-Total spend per project:
+Sum session-recorded costs per project:
 
 ```sql
 SELECT p.worktree, ROUND(SUM(s.cost), 2) AS usd, COUNT(*) AS sessions
@@ -76,19 +76,25 @@ FROM session s JOIN project p ON p.id = s.project_id
 GROUP BY p.worktree ORDER BY usd DESC;
 ```
 
-That last query includes sub-agent sessions on purpose, because they are part of the bill.
+The last query includes sub-agent rows on purpose. It sums `session.cost`, which is a stored value, not a provider invoice. Desktop statistics instead read assistant-message costs; the two aggregations need not agree if records are missing or inconsistent.
 
 ## Why cost has to come from the database {#cost-from-db}
 
-opencode can point at any provider: DeepSeek, OpenRouter, a local model, anything. A price table keyed on model name cannot reconstruct what a call actually cost, so the real `modelID` and `cost` recorded per assistant message are the only trustworthy source.
+opencode can use different providers or local models, so a price table keyed only by model name may not reflect that setup. The viewer reads `modelID`, `tokens` and `cost` from assistant-message records rather than repricing them with its catalog. Missing numeric message costs currently default to zero; this means unmeasured cost, not verified free work. Recorded cost is not an independently verified invoice. Compare financial decisions with the provider's actual usage report; see [usage and cost boundaries](/features/stats#cost-vs-bill).
 
 ## How do I resume this session?
 
 Run `opencode --session SESSION_ID` from the project's directory with opencode installed. The app offers [terminal resume](/features/resume), not in-app opencode chat.
 
+## View and search opencode history {#view-and-search}
+
+[Install Sessions Viewer](/guide/install), select opencode, then choose a project to read its supported SQLite sessions. Use `⌘⇧F` (macOS) or `Ctrl+Shift+F` (Windows/Linux) for session titles and saved user prompts across opencode projects, or switch to ID mode. This does not search assistant answers or tool output; see [search scope](/features/read-and-search#search-scope).
+
+Export Markdown, HTML or parsed-message JSON after reviewing private content; keep the native database for archival needs. [Export limits](/features/export-and-trash) include external/unreadable images. Continuing uses the installed opencode CLI in a terminal, not an opencode in-app chat. Sessions Viewer is an independent open-source project, not an official opencode product. Check [privacy](/guide/privacy) before resuming or sharing.
+
 ## Source and limitations
 
-Implementation: [opencode adapter](https://github.com/jerrywu001/cc-sessions-viewer/blob/22fefc6/src-tauri/src/agents/opencode.rs). Upstream: [opencode documentation](https://opencode.ai/docs/).
+Path, recorded-cost and viewer-operation wording reviewed on 2026-10-06 against the [0.6.0 opencode adapter](https://github.com/jerrywu001/cc-sessions-viewer/blob/69e0b4f/src-tauri/src/agents/opencode.rs) and [search implementation](https://github.com/jerrywu001/cc-sessions-viewer/blob/69e0b4f/src-tauri/src/agents/mod.rs). This is source review and synthetic-test scope, not CLI runtime certification. Upstream: [opencode documentation](https://opencode.ai/docs/).
 
 <!--@include: ../.vitepress/snippets/reference-en.md-->
 

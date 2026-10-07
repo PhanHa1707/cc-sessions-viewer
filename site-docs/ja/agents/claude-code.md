@@ -88,4 +88,4 @@ Claude Code をインストールし、プロジェクトのディレクトリ�
 
 手順と手動／GUI の使い分けは [Claude Code の検索・保存・再開](/ja/guide/claude-code-session-viewer)を参照してください。
 
-[Sessions Viewer](/ja/guide/) はこれらのファイルを直接読みます。思考ブロック、ツール呼び出しと結果の対応づけ、`structuredPatch` の diff、インライン画像が当時のとおりに描画され、履歴閲覧は元ファイルを書き換えず、`⌘⇧F` で全プロジェクトを一度に検索できます。[Codex](/ja/agents/codex)、[Grok Build](/ja/agents/grok-build)、[Kimi Code](/ja/agents/kimi-code)、[Pi](/ja/agents/pi)、[Antigravity CLI](/ja/agents/antigravity-cli)、[opencode](/ja/agents/opencode) にも対応しています。
+[Sessions Viewer](/ja/guide/) はこれらのファイルを直接読みます。対応する記録済みの思考、ツールの対応づけ、`structuredPatch` diff、画像を読みやすく表示します。履歴閲覧は元ファイルを書き換えません。Claude Code を選択すると `⌘⇧F` でそのタイトルとユーザープロンプトを横断検索できます。[検索と表示の制限](/ja/features/read-and-search#search-scope)を確認してください。[Codex](/ja/agents/codex)、[Grok Build](/ja/agents/grok-build)、[Kimi Code](/ja/agents/kimi-code)、[Pi](/ja/agents/pi)、[Antigravity CLI](/ja/agents/antigravity-cli)、[opencode](/ja/agents/opencode) にも対応しています。

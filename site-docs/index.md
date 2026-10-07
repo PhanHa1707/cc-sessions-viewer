@@ -20,16 +20,16 @@ hero:
       link: https://github.com/jerrywu001/cc-sessions-viewer
 
 features:
-  - title: Faithful replay
-    details: Thinking chains, tool calls paired with their results, structured diffs and pasted screenshots render the way they happened on screen.
+  - title: Read recorded context
+    details: Read supported thinking blocks, paired tool calls and results, structured diffs and recorded images. Coverage depends on the agent format and available source data.
     link: /features/read-and-search
     linkText: How sessions are replayed
   - title: Search across every project
-    details: ⌘⇧F searches all projects at once and jumps to the matching message. A compact prompt list shows every prompt you wrote in a session.
+    details: ⌘⇧F searches titles and user prompts across the selected agent's projects, with a separate session-ID mode. Open matching context or use the session's prompt list.
     link: /features/read-and-search#finding-a-message
     linkText: Search and jump to a prompt
   - title: Resume where you left off
-    details: Reopen a session in an embedded terminal, hand it to Terminal.app, iTerm2, Ghostty, Warp or cmux, or keep going in an in-app chat with model, reasoning effort and permission mode as live controls.
+    details: Resume supported sessions with the matching CLI in an embedded or supported external terminal. Claude Code and Codex also support in-app chat with model and permission controls.
     link: /features/resume
     linkText: Resume and continue
   - title: Edit project files

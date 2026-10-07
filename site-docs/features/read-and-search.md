@@ -1,12 +1,12 @@
 ---
-title: Reading and searching sessions
-description: Replay a coding agent transcript with paired tool calls, collapsed thinking, structured diffs and inline images, and search every project at once.
+title: Search Claude Code, Codex and opencode History
+description: Read supported session records and search titles, IDs or saved user prompts across the selected agent's projects. Understand global search and replay limits.
 image: /screenshots/chat.png
 ---
 
 # Reading and searching sessions
 
-A JSONL transcript contains everything that happened, in an order and a shape designed for a program rather than a person. The reading view puts it back into the form it had on screen.
+Sessions Viewer presents supported JSONL and opencode SQLite records as a readable conversation. It can show recorded messages, tools, reasoning, diffs and images when the adapter recognizes them. It cannot recreate missing records or reproduce the CLI screen exactly.
 
 ![A Claude Code session replayed in Sessions Viewer, with tool calls paired to their results and a rendered diff](/screenshots/chat.png)
 
@@ -18,7 +18,7 @@ In the file, a call and its result are separate records, sometimes many lines ap
 
 ### Thinking blocks, collapsed until you want them
 
-Extended thinking is often longer than the answer. It is preserved and folded, and you can expand it per message or for the whole session at once. Consecutive reasoning steps are grouped into one compact row. A global setting and per-session controls can hide reasoning independently of tool calls.
+Recorded thinking is often longer than the answer. Supported blocks are folded, and you can expand it per message or for the whole session at once. Consecutive reasoning steps are grouped into one compact row. A global setting and per-session controls can hide reasoning independently of tool calls.
 
 ### Diffs rendered as diffs
 
@@ -36,7 +36,13 @@ Anything the agent emitted as Markdown is rendered as Markdown.
 
 ![Global search in Sessions Viewer listing matches from several projects](/screenshots/search.png)
 
-`⌘⇧F` opens global search. It runs across every project and every agent at once. Selecting a result opens that session, scrolls to the exact message and flashes it so you can see where you landed.
+`⌘⇧F` opens global search across the **currently selected agent's projects**, not all seven agents at once. Keyword mode matches session titles and saved **user-message text**; switch to ID mode to find a session ID. Selecting a text match opens the session at the matching user message. Title/ID matches open the session without promising a text-message location.
+
+### Search scope and limits {#search-scope}
+
+Global search does not match assistant answers, thinking, tool arguments/results or project paths. Switch agents to search another source. The normal search excludes archived and trashed sessions; consult the [Codex archive guide](/guide/codex-session-viewer#archived) or [trash view](/features/export-and-trash) instead. The backend returns at most 200 matching sessions, and the modal renders at most 80. It is not an exhaustive full-text export.
+
+The parser only presents supported, recorded fields. For example, opencode tool output over 30 lines is shortened with a remaining-line notice. Keep native files or the database for full archival needs; [parsed-message export](/features/export-and-trash) is not a native backup.
 
 `⌘F` searches inside whatever is currently open, and `⌘G` and `⌘⇧G` step through the matches.
 
@@ -55,3 +61,5 @@ A Pi transcript opens with its most recent message page first. Scroll upward to 
 ## Nothing is written back
 
 Reading and searching history do not rewrite the source transcript. Local settings and caches may be written. Rename, trash/restore, continued conversations and editing features have separate write behavior; see [privacy and data handling](/guide/privacy).
+
+Search and opencode display limits reviewed against Sessions Viewer 0.6.0 on 2026-10-06: [search UI](https://github.com/jerrywu001/cc-sessions-viewer/blob/69e0b4f/src/modals/GlobalSearchModal.vue), [command](https://github.com/jerrywu001/cc-sessions-viewer/blob/69e0b4f/src-tauri/src/lib.rs), [search matching](https://github.com/jerrywu001/cc-sessions-viewer/blob/69e0b4f/src-tauri/src/agents/mod.rs) and [opencode adapter](https://github.com/jerrywu001/cc-sessions-viewer/blob/69e0b4f/src-tauri/src/agents/opencode.rs). This is source review, not live CLI acceptance.

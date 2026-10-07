@@ -272,9 +272,9 @@ function seoHead(page: PageData, siteConfig: SiteConfig): HeadConfig[] {
       sameAs: [REPO],
       featureList: [
         'Read Claude Code, Codex, Grok Build, Kimi Code, Pi, Antigravity CLI and opencode session transcripts',
-        'Search every project at once',
-        'Resume a session in a terminal or in-app chat',
-        'Token and cost statistics priced from models.dev',
+        'Search session titles, IDs and user prompts across projects for the selected agent',
+        'Terminal resume for all seven agents; in-app chat for Claude Code and Codex',
+        'Recorded token usage with catalog-based cost estimates or opencode database-recorded costs',
         'Export sessions as Markdown, HTML or JSON',
         'Manage skills, MCP servers and hooks',
       ],

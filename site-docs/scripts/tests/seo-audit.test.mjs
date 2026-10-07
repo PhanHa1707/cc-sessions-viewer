@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { JSDOM } from 'jsdom'
-import { auditPage, auditRobots, auditSitemap, routeOf, LOCALES } from '../seo-audit.mjs'
+import { auditPage, auditRobots, auditSitemap, auditSnippet, routeOf, LOCALES } from '../seo-audit.mjs'
 
 const siteUrl = 'https://docs.example.test'
 const paths = ['index.md', 'agents/pi.md', 'guide/privacy.md']
@@ -25,10 +25,11 @@ function page() {
     <meta property="og:title" content="Pi session history | Sessions Viewer">
     <meta name="twitter:title" content="Pi session history | Sessions Viewer">
     <meta property="og:description" content="Read Pi session records.">
+    <meta name="twitter:description" content="Read Pi session records.">
     ${Object.entries(LOCALES).map(([prefix, lang]) => `<link rel="alternate" hreflang="${lang}" href="${siteUrl}${routeOf(prefix + 'agents/pi.md')}">`).join('')}
     <link rel="alternate" hreflang="x-default" href="${url}">
     <script type="application/ld+json">${JSON.stringify({ '@context': 'https://schema.org', '@graph': graph })}</script>
-    </head><body><div class="vp-doc"><p>Reference reviewed 2026-10-05. This is synthetic static content for regression tests, not evidence of a real CLI execution.</p>
+    </head><body><div class="vp-doc"><h1>Pi session history</h1><p>Reference reviewed 2026-10-05. This is synthetic static content for regression tests, not evidence of a real CLI execution.</p>
     <a href="/guide/privacy">Privacy</a><a href="https://github.com/jerrywu001/cc-sessions-viewer/blob/22fefc6/src-tauri/src/agents/pi.rs">Source</a></div></body></html>`)
 }
 function checkMutation(mutate) {
@@ -46,6 +47,39 @@ test('clean URL mapping preserves homepage and language roots', () => {
   assert.equal(routeOf('ja/agents/pi.md'), '/ja/agents/pi')
 })
 test('valid static document passes', () => assert.deepEqual(checkMutation(() => {}), []))
+test('missing, empty and duplicate H1 fail, including home-layout headings', () => {
+  for (const mutate of [
+    (d) => d.querySelector('h1').remove(),
+    (d) => { d.querySelector('h1').textContent = ' ' },
+    (d) => d.querySelector('.vp-doc').appendChild(d.querySelector('h1').cloneNode(true)),
+  ]) assert.ok(checkMutation(mutate).includes('missing, empty or duplicate H1'))
+  // VitePress's home hero is not a <main>. Do not incorrectly require main h1.
+  assert.deepEqual(checkMutation((d) => {
+    const hero = d.createElement('div')
+    hero.className = 'VPHero'
+    hero.appendChild(d.querySelector('h1'))
+    d.body.prepend(hero)
+  }), [])
+})
+test('Twitter description must agree with the visible page metadata', () => {
+  assert.ok(checkMutation((d) => { d.querySelector('meta[name="twitter:description"]').content = 'Outdated copy' }).includes('social description does not match page description'))
+})
+test('focused English snippet budgets use final title and exclude translated pages', () => {
+  const dom = page()
+  try {
+    const d = dom.window.document
+    d.title = 'x'.repeat(70)
+    d.querySelector('meta[name="description"]').content = 'x'.repeat(160)
+    assert.deepEqual(auditSnippet(d, 'tools/claude-code-cost-calculator.md'), [])
+    d.title += 'x'
+    d.querySelector('meta[name="description"]').content += 'x'
+    assert.deepEqual(auditSnippet(d, 'tools/claude-code-cost-calculator.md'), [
+      'English title exceeds editorial budget (70 characters)',
+      'English description exceeds editorial budget (160 characters)',
+    ])
+    for (const path of ['zh/tools/claude-code-cost-calculator.md', 'ja/tools/claude-code-cost-calculator.md', 'agents/pi.md']) assert.deepEqual(auditSnippet(d, path), [])
+  } finally { dom.window.close() }
+})
 test('preview canonical fails', () => {
   assert.ok(checkMutation((d) => d.querySelector('link[rel="canonical"]').href = 'https://preview.example.test/agents/pi').includes('wrong or duplicate canonical'))
 })

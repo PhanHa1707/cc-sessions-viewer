@@ -23,7 +23,7 @@ https://github.com/user-attachments/assets/9bcb92a8-e5b8-40e5-b492-af252162309b
 
 ## What it does
 
-Sessions Viewer turns local agent transcripts into a searchable workspace. Open a project, inspect exactly what happened, then continue the work from the same place without manually hunting through JSONL files.
+Sessions Viewer turns local agent transcripts into a searchable workspace. Open a project, inspect supported recorded context, then continue the work from the same place without manually hunting through JSONL files.
 
 > [!TIP]
 > **New — Tool management.** Skills, MCP servers, hooks, and instruction files for all seven agents in one place. Find the duplicate skills and broken links on your machine and repair them, inspect cached MCP context estimates, and preview file edits. Review hook commands before testing: a dry-run executes the script, not a sandbox.
@@ -32,8 +32,8 @@ Sessions Viewer turns local agent transcripts into a searchable workspace. Open 
 
 ### Read and find context
 
-- **Faithful replay** — preserve thinking chains, tool-call pairings, structured diffs, and inline screenshots.
-- **Global search** — search across projects and jump to the exact matching message with `⌘⇧F`.
+- **Recorded context** — view supported thinking blocks, paired tools, structured diffs and recorded images; coverage depends on the source format.
+- **Global search** — with `⌘⇧F`, search titles and saved user prompts across the selected agent's projects, or switch to session-ID mode. Assistant answers and tool output are not matched.
 - **Jump to prompt** — scan every user prompt in a compact list, then scroll and flash the selected message.
 - **Views history** — revisit recent read and chat views, with per-project search and favorites.
 
@@ -100,7 +100,7 @@ Task guides: [Claude Code history](https://sessions-viewer.js-bridge.com/guide/c
     </td>
     <td width="50%">
       <img src="docs/screenshots/search.png" alt="Global search overlay" />
-      <p align="center"><em>Global search (⌘⇧F) jumps to the message</em></p>
+      <p align="center"><em>Global search (⌘⇧F) opens matching sessions and user prompts</em></p>
     </td>
   </tr>
   <tr>
@@ -130,7 +130,7 @@ Task guides: [Claude Code history](https://sessions-viewer.js-bridge.com/guide/c
     </td>
     <td width="50%">
       <img src="docs/screenshots/export.png" alt="Exported HTML preview" />
-      <p align="center"><em>Exported HTML — fully offline, opens in any browser</em></p>
+      <p align="center"><em>Exported HTML — readable in a browser; images may remain external</em></p>
     </td>
   </tr>
 </table>

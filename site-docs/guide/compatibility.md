@@ -1,5 +1,5 @@
 ---
-title: Agent compatibility, validation scope and synthetic transcript samples
+title: Agent Compatibility and Transcript Samples
 description: Check supported session formats, chat and resume capabilities, evidence levels, and downloadable synthetic JSONL/SQLite examples with tested output.
 ---
 

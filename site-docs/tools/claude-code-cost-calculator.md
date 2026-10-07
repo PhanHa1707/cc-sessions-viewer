@@ -1,6 +1,6 @@
 ---
-title: Claude Code Cost Calculator — Tokens, Cache and Monthly Estimates
-description: Calculate Claude Code API-equivalent cost from input, output and cache tokens. Free browser calculator with model rates, 5-minute and 1-hour writes and monthly assumptions.
+title: Claude Code Cost Calculator
+description: Estimate Claude Code API-equivalent cost from input, output and cache tokens. Verify model rates and cache lifetimes, then compare monthly scenarios.
 ---
 
 <script setup>

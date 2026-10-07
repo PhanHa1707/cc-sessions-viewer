@@ -1,12 +1,12 @@
 ---
-title: 如何查看、查找与恢复 Codex rollout 会话
-description: 根据session_meta中的cwd定位Codex项目，搜索用户与agent事件，避免重复response_item文本，导出解析后的历史并恢复原会话。
+title: Codex 会话查看器 — 查找历史、导出与恢复
+description: 用 Sessions Viewer 按保存的 cwd 定位 Codex rollout 项目，搜索原始提问、导出解析后的历史并恢复会话；说明归档、用量与权限限制。
 image: /screenshots/cover.png
 ---
 
 # 找回并继续 Codex rollout
 
-Sessions Viewer 读取本地 Codex rollout，按项目整理并帮助你先找回上下文再继续。它是独立开源应用，不是 OpenAI 官方产品。[安装](/zh/guide/install)后，不必新建对话就能浏览搜索。
+Sessions Viewer 是 Codex 会话历史查看器，读取本地 rollout，按项目整理并帮助你先找回上下文再继续。它是独立开源应用，不是 OpenAI 官方产品。[安装](/zh/guide/install)后，不必新建对话就能浏览搜索。
 
 ## 1. 定位正确项目 {#find-project}
 
@@ -26,7 +26,7 @@ jq -r 'select(.type=="session_meta") | .payload.cwd' rollout-SESSION.jsonl
 
 ## 2. 找消息，再检查 rollout {#read}
 
-选择项目的历史视图；全局搜索在 macOS 使用 `⌘⇧F`，跨项目搜一句独特文本，选择结果跳到匹配消息。会话内可用搜索或提问列表查看原任务，其他系统见[快捷键提示](/zh/features/shortcuts)。
+选择 Codex 和项目的历史视图；macOS 的全局搜索 `⌘⇧F` 跨 Codex 项目匹配标题或已保存的用户提问，也可切换为 ID 模式。文本命中跳到用户消息，不搜索助手事件或工具输出，详见[搜索范围](/zh/features/read-and-search#search-scope)。会话内可用搜索或提问列表查看原任务，其他系统见[快捷键提示](/zh/features/shortcuts)。
 
 ![历史工作区中的项目与会话](/screenshots/cover.png)
 
@@ -36,7 +36,7 @@ Codex 的 `event_msg` 与 `response_item` 可能记录重叠正文，两者直�
 
 ## 3. 导出需要的内容 {#export}
 
-会话导出可选 Markdown、离线 HTML 或解析后的消息 JSON。分享前脱敏代码、路径与工具结果。JSON 导出不是原生 rollout 备份，不能假定 Codex 可导入；归档应保留源文件。见[导出说明](/zh/features/export-and-trash)。
+会话导出可选 Markdown、可阅读 HTML 或解析后的消息 JSON。远程或无法读取的图片可能仍为外链，不保证完全离线可携带。分享前脱敏代码、路径与工具结果。JSON 导出不是原生 rollout 备份，不能假定 Codex 可导入；归档应保留源文件。见[导出说明](/zh/features/export-and-trash)。
 
 ## 4. 恢复而不是重开 {#resume}
 

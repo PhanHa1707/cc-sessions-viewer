@@ -6,7 +6,7 @@ image: /screenshots/search.png
 
 # Claude Code 历史记录查看器：搜索、导出与恢复 {#找回并继续-claude-code-会话}
 
-记得对话内容却不知道是哪份 JSONL 时，可以用 Sessions Viewer 按项目浏览本地历史、搜索消息、查看工具结果，再交回 Claude Code 继续。[下载安装](/zh/guide/install)后即可浏览。这是独立开源应用，不是 Anthropic 官方产品。
+记得对话内容却不知道是哪份 JSONL 时，可以用 Sessions Viewer 按项目浏览本地历史、搜索用户提问、查看工具结果，再交回 Claude Code 继续。[下载安装](/zh/guide/install)后即可浏览。这是独立开源应用，不是 Anthropic 官方产品。
 
 ## 安装前先试本地统计或成本估算 {#browser-tools}
 
@@ -16,8 +16,8 @@ image: /screenshots/search.png
 
 ## 1. 找项目和原始提问 {#find}
 
-1. 打开应用，选择项目的历史视图。
-2. 在全局搜索中输入记得的一句独特文本；macOS 快捷键为 `⌘⇧F`，点击结果即可打开会话并跳到消息。
+1. 打开应用，选择 Claude Code 和项目的历史视图。
+2. 全局搜索输入已保存用户提问中的独特文本，也可查标题／ID；macOS 快捷键为 `⌘⇧F`。文本命中跳到对应用户消息，不匹配助手回答或工具输出，详见[搜索范围](/zh/features/read-and-search#search-scope)。
 3. 已知道会话时，用提问列表或视图内搜索 `⌘F` 找到具体位置。其他平台请看[快捷键提示](/zh/features/shortcuts)。
 
 ![全局搜索跨本地项目找到匹配消息](/screenshots/search.png)
@@ -34,7 +34,7 @@ Claude Code 通常保存在 `~/.claude/projects/<encoded-project>/<uuid>.jsonl`�
 
 ## 3. 导出内容，不把它当原生备份 {#export}
 
-用会话导出：Markdown 适合笔记，HTML 适合离线页面，JSON 保存解析后的消息。分享前检查提问、代码、路径和工具输出是否含隐私。导出不是 Claude JSONL 的逐字节备份，完整归档应保留源文件。见[导出选项](/zh/features/export-and-trash)。
+用会话导出：Markdown 适合笔记，HTML 生成可阅读页面，JSON 保存解析后的消息。远程或无法读取的图片可能仍是外链，不保证每份导出完全离线可用。分享前检查提问、代码、路径和工具输出是否含隐私。导出不是 Claude JSONL 的逐字节备份，完整归档应保留源文件。见[导出选项](/zh/features/export-and-trash)。
 
 ## 4. 恢复原任务 {#resume}
 

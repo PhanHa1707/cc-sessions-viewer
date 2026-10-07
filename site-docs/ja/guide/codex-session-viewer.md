@@ -1,12 +1,12 @@
 ---
-title: Codex rollout の履歴を探して閲覧・再開する方法
-description: session_metaのcwdでCodexプロジェクトを特定し、ユーザーとagentのイベントを検索、重複した本文を避けて保存し、元の会話を再開します。
+title: Codex セッションビューア — 履歴の検索・保存・再開
+description: Sessions Viewer で保存された cwd から Codex rollout のプロジェクトを特定し、元のプロンプトを検索、解析済み履歴を保存して再開します。アーカイブと使用量の制限も説明します。
 image: /screenshots/cover.png
 ---
 
 # Codex rollout を探して続ける
 
-Sessions Viewer はローカルの Codex rollout を読み、プロジェクト別に整理して続行前の文脈を確認できます。独立したオープンソースアプリで、OpenAI の公式製品ではありません。[インストール](/ja/guide/install)後、新しい会話を作らずに閲覧・検索できます。
+Sessions Viewer はローカルの Codex rollout を読むセッション履歴ビューアです。プロジェクト別に整理して続行前の文脈を確認できます。独立したオープンソースアプリで、OpenAI の公式製品ではありません。[インストール](/ja/guide/install)後、新しい会話を作らずに閲覧・検索できます。
 
 ## 1. 正しいプロジェクトを特定する {#find-project}
 
@@ -26,7 +26,7 @@ jq -r 'select(.type=="session_meta") | .payload.cwd' rollout-SESSION.jsonl
 
 ## 2. メッセージと rollout を読む {#read}
 
-プロジェクトの履歴を選び、グローバル検索で特徴的な文を探します。macOS は `⌘⇧F` です。結果から該当メッセージへ移動し、会話内検索や入力一覧で元の指示を確認できます。ほかの OS は[ショートカット](/ja/features/shortcuts)を参照してください。
+Codex とプロジェクトの履歴を選びます。macOS の `⌘⇧F` で Codex のタイトルと保存済みユーザープロンプトを横断検索し、ID モードも使えます。本文ヒットはユーザーメッセージを開き、回答イベントやツール出力は対象外です。[検索範囲](/ja/features/read-and-search#search-scope)を確認し、会話内検索や入力一覧で元の指示を探せます。ほかの OS は[ショートカット](/ja/features/shortcuts)を参照してください。
 
 ![履歴ワークスペースのプロジェクトとセッション](/screenshots/cover.png)
 
@@ -36,7 +36,7 @@ jq -r 'select(.type=="session_meta") | .payload.cwd' rollout-SESSION.jsonl
 
 ## 3. 必要な内容を保存する {#export}
 
-Markdown、オフライン HTML、解析済みメッセージ JSON を選べます。コード、パス、ツール出力を確認してから共有します。JSON はネイティブ rollout のバックアップではなく、Codex がインポートできるとは限りません。原本を保存してください。[エクスポート](/ja/features/export-and-trash)に詳細があります。
+Markdown、読みやすい HTML、解析済みメッセージ JSON を選べます。外部画像や読めない画像がリンクのまま残る場合があり、完全なオフライン可搬性は保証されません。コード、パス、ツール出力を確認してから共有します。JSON はネイティブ rollout のバックアップではなく、Codex がインポートできるとは限りません。原本を保存してください。[エクスポート](/ja/features/export-and-trash)に詳細があります。
 
 ## 4. 新規ではなく再開する {#resume}
 

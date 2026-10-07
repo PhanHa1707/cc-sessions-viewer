@@ -1,6 +1,6 @@
 ---
-title: Reuse a skill across agents and repair broken skill links
-description: Inspect duplicate skills, choose a shared source, preview moves and links, and repair detours safely in Sessions Viewer without assuming agent behavior is identical.
+title: Share Agent Skills and Repair Links
+description: Inspect duplicate agent skills, preview shared sources and repair broken links in Sessions Viewer. Verify behavior in each target agent before relying on it.
 image: /screenshots/tools-skills-repair.png
 ---
 

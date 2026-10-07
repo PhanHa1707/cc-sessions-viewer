@@ -1,6 +1,6 @@
 ---
-title: Why are my coding-agent sessions missing from Sessions Viewer?
-description: Check agent data roots, desktop environment variables, Codex archives, project paths and supported record formats without moving or deleting private transcripts.
+title: Find Missing Coding-Agent Sessions
+description: Check data roots, environment variables, Codex archives, project paths and supported record formats without moving or deleting private transcripts.
 ---
 
 # Why can't Sessions Viewer find my session?

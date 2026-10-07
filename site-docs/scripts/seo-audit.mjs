@@ -11,8 +11,26 @@ export function localeOf(relativePath) {
   return { prefix, lang: LOCALES[prefix], base: relativePath.slice(prefix.length) }
 }
 
-export function auditPage(document, { relativePath, pages, siteUrl }) {
+// Editorial budgets for the English pages refined in the 2026-10-06 audit.
+// These are project constraints, not engine eligibility limits or CJK budgets.
+const ENGLISH_SNIPPET_PAGES = new Set([
+  'agents/index.md', 'agents/opencode.md', 'features/read-and-search.md', 'features/export-and-trash.md',
+  'guide/about.md', 'guide/claude-code-session-viewer.md', 'guide/codex-session-viewer.md',
+  'guide/compatibility.md', 'guide/troubleshooting.md', 'tools/check-mcp.md',
+  'tools/share-skills.md', 'tools/claude-code-cost-calculator.md', 'tools/claude-code-token-counter.md',
+])
+
+export function auditSnippet(document, relativePath) {
+  if (!ENGLISH_SNIPPET_PAGES.has(relativePath)) return []
   const errors = []
+  if ([...document.title].length > 70) errors.push('English title exceeds editorial budget (70 characters)')
+  const description = document.querySelector('meta[name="description"]')?.content ?? ''
+  if ([...description].length > 160) errors.push('English description exceeds editorial budget (160 characters)')
+  return errors
+}
+
+export function auditPage(document, { relativePath, pages, siteUrl }) {
+  const errors = auditSnippet(document, relativePath)
   const check = (ok, message) => { if (!ok) errors.push(message) }
   const { prefix, lang, base } = localeOf(relativePath)
   const url = siteUrl + routeOf(relativePath)
@@ -31,7 +49,9 @@ export function auditPage(document, { relativePath, pages, siteUrl }) {
   check(/\bindex\b/.test(meta('robots') ?? '') && !/noindex|nosnippet/i.test(meta('robots') ?? ''), 'index/snippet policy blocks content')
   check(property('og:url') === url, 'og:url does not match canonical')
   check(property('og:title') === title && meta('twitter:title') === title, 'social titles do not match page title')
-  check(property('og:description') === meta('description'), 'social description does not match page description')
+  check(property('og:description') === meta('description') && meta('twitter:description') === meta('description'), 'social description does not match page description')
+  const h1 = document.querySelectorAll('h1')
+  check(h1.length === 1 && Boolean(h1[0].textContent.trim()), 'missing, empty or duplicate H1')
 
   const alternates = [...document.querySelectorAll('link[rel="alternate"][hreflang]')]
   for (const [targetPrefix, targetLang] of Object.entries(LOCALES)) {

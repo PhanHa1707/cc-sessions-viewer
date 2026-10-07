@@ -1,12 +1,12 @@
 ---
 title: 阅读与搜索会话
-description: 把 coding agent 的会话记录还原成带工具调用配对、折叠思考块、结构化 diff 和内联图片的对话视图，并跨所有项目一次搜到某一条消息。
+description: 阅读 Claude Code、Codex 和 opencode 等受支持记录，在当前 agent 的项目间搜索标题、ID 或用户提问，了解全局搜索与回放限制。
 image: /screenshots/chat.png
 ---
 
 # 阅读与搜索会话
 
-一份 JSONL 记录里什么都有，但它的顺序和形态是给程序看的，不是给人看的。阅读视图要做的就是把它还原成当时在屏幕上的样子。
+Sessions Viewer 把受支持的 JSONL 和 opencode SQLite 记录呈现为可读对话。适配器识别后，可显示已记录的消息、工具、思考、diff 和图片；不能恢复缺失记录，也不是逐像素重放 CLI 屏幕。
 
 ![Sessions Viewer 里回放的一个 Claude Code 会话：工具调用和结果配好了对，diff 渲染成了真正的 diff](/screenshots/chat.png)
 
@@ -18,7 +18,7 @@ image: /screenshots/chat.png
 
 ### 思考块默认折着，想看再展开
 
-扩展思考经常比答案本身还长。它被完整保留、折叠起来，可以单条展开，也可以整个会话一次全展开。连续的推理步骤会合并成一行紧凑内容；全局设置和单个会话都可以隐藏或显示推理，而且不影响工具调用的显示。
+扩展思考经常比答案本身还长。受支持的已记录块会折叠显示，可以单条展开，也可以整个会话一次全展开。连续的推理步骤会合并成一行紧凑内容；全局设置和单个会话都可以隐藏或显示推理，而且不影响工具调用的显示。
 
 ### diff 渲染成 diff
 
@@ -36,7 +36,13 @@ agent 以 markdown 输出的内容，就按 markdown 渲染。
 
 ![Sessions Viewer 的全局搜索，列出了来自多个项目的命中结果](/screenshots/search.png)
 
-`⌘⇧F` 打开全局搜索。它一次搜遍所有项目、所有 agent。选中一条结果会打开那个会话，滚到那条消息，并闪一下告诉你落在哪儿了。
+`⌘⇧F` 打开全局搜索，跨**当前选中 agent 的项目**查找，不是同时搜索七家。关键词模式匹配会话标题和已保存的**用户消息正文**；ID 模式查会话 ID。文本命中会打开对应用户消息；标题／ID 命中则打开会话，不保证跳到某条文本消息。
+
+### 搜索范围与限制 {#search-scope}
+
+全局搜索不匹配助手回答、思考、工具参数／结果或项目路径；查另一家记录需要切换 agent。普通搜索不含归档及已回收会话，应查看 [Codex 归档视图](/zh/guide/codex-session-viewer#archived)或[回收站](/zh/features/export-and-trash)。后端最多返回 200 个命中会话，弹窗最多呈现 80 个，不是完整全文导出。
+
+解析器只呈现受支持的已记录字段。例如 opencode 工具输出超过 30 行时会缩短并提示剩余行数。完整归档需保留原始文件或数据库；[解析后消息导出](/zh/features/export-and-trash)不是原生备份。
 
 `⌘F` 在当前打开的内容里搜，`⌘G` 和 `⌘⇧G` 在命中之间来回跳。
 
@@ -55,3 +61,5 @@ agent 以 markdown 输出的内容，就按 markdown 渲染。
 ## 什么都不会写回去
 
 阅读与搜索历史不会重写源记录，但可能写本地设置和缓存。重命名、回收／还原、继续对话及编辑功能有各自的写入行为，见[隐私与数据处理](/zh/guide/privacy)。
+
+搜索与 opencode 展示限制于 2026-10-06 核对 Sessions Viewer 0.6.0：[搜索界面](https://github.com/jerrywu001/cc-sessions-viewer/blob/69e0b4f/src/modals/GlobalSearchModal.vue)、[命令入口](https://github.com/jerrywu001/cc-sessions-viewer/blob/69e0b4f/src-tauri/src/lib.rs)、[匹配实现](https://github.com/jerrywu001/cc-sessions-viewer/blob/69e0b4f/src-tauri/src/agents/mod.rs)与 [opencode 适配器](https://github.com/jerrywu001/cc-sessions-viewer/blob/69e0b4f/src-tauri/src/agents/opencode.rs)。这是源码核对，不是实际 CLI 验收。

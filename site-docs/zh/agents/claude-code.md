@@ -88,4 +88,4 @@ grep -l "src/api.ts" ~/.claude/projects/*/*.jsonl
 
 具体步骤和手动／GUI 取舍见 [Claude Code 搜索、导出与恢复流程](/zh/guide/claude-code-session-viewer)。
 
-[Sessions Viewer](/zh/guide/) 直接读这些文件。思考块、工具调用与结果的配对、`structuredPatch` diff、内联图片都按当时的样子呈现，历史浏览不重写原文件，`⌘⇧F` 一次搜遍所有项目。它同时还读 [Codex](/zh/agents/codex)、[Grok Build](/zh/agents/grok-build)、[Kimi Code](/zh/agents/kimi-code)、[Pi](/zh/agents/pi)、[Antigravity CLI](/zh/agents/antigravity-cli) 和 [opencode](/zh/agents/opencode)。
+[Sessions Viewer](/zh/guide/) 直接读这些文件。已记录且受支持的思考块、配对工具、`structuredPatch` diff 和图片呈现为可读视图，历史浏览不重写原文件。选中 Claude Code 后，`⌘⇧F` 跨其项目搜索标题与用户提问；见[搜索与展示限制](/zh/features/read-and-search#search-scope)。它同时还读 [Codex](/zh/agents/codex)、[Grok Build](/zh/agents/grok-build)、[Kimi Code](/zh/agents/kimi-code)、[Pi](/zh/agents/pi)、[Antigravity CLI](/zh/agents/antigravity-cli) 和 [opencode](/zh/agents/opencode)。

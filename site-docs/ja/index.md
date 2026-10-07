@@ -20,16 +20,16 @@ hero:
       link: https://github.com/jerrywu001/cc-sessions-viewer
 
 features:
-  - title: そのままの再現
-    details: 思考チェーン、ツール呼び出しと結果の対応づけ、構造化された diff、貼り付けたスクリーンショットまで、画面で起きたとおりに表示されます。
+  - title: 記録済みの文脈を読む
+    details: 対応する思考ブロック、ツール呼び出しと結果、構造化 diff、記録された画像を表示します。範囲はエージェントの形式と残っている元データに依存します。
     link: /ja/features/read-and-search
     linkText: セッション再現のしくみ
   - title: プロジェクト横断の検索
-    details: ⌘⇧F で全プロジェクトを一度に検索し、該当するメッセージへ直接ジャンプします。そのセッションで書いたプロンプトはコンパクトな一覧で見渡せます。
+    details: ⌘⇧F で選択中エージェントのプロジェクトを横断し、タイトルとユーザープロンプトを検索します。セッション ID 検索や会話内のプロンプト一覧も利用できます。
     link: /ja/features/read-and-search#finding-a-message
     linkText: 検索とプロンプトへのジャンプ
   - title: 中断したところから再開
-    details: 内蔵ターミナルで開き直す、Terminal.app / iTerm2 / Ghostty / Warp / cmux に渡す、あるいはアプリ内チャットでそのまま続ける。モデル・推論の強さ・権限モードはその場で切り替えられます。
+    details: 対応する CLI を使い、内蔵または対応外部ターミナルで再開します。Claude Code と Codex はモデル・権限を調整できるアプリ内チャットにも対応します。
     link: /ja/features/resume
     linkText: 再開と継続
   - title: プロジェクトファイルエディター

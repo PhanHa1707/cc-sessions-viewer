@@ -1,6 +1,6 @@
 ---
-title: About Sessions Viewer and how its documentation is maintained
-description: Sessions Viewer is an MIT-licensed independent desktop project maintained through its public GitHub repository, with source-backed documentation and explicit test limitations.
+title: About the Sessions Viewer Project
+description: Learn who maintains Sessions Viewer, its MIT license and public source, and how documentation claims are checked without promising CLI certification.
 ---
 
 # About Sessions Viewer

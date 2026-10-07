@@ -1,12 +1,12 @@
 ---
-title: How to view, find and resume Codex rollout sessions
-description: Find a Codex rollout by session_meta cwd, search user and agent events, avoid duplicate response items, export parsed history and resume the session locally.
+title: "Codex Session Viewer: Search and Resume"
+description: View local Codex rollout history, find projects by saved cwd, search prompts, export parsed sessions and resume with the configured CLI.
 image: /screenshots/cover.png
 ---
 
 # Find and continue a Codex rollout
 
-Sessions Viewer reads local Codex rollout files, groups them by project and helps you recover the conversation before continuing. It is an independent open-source app, not an OpenAI product. [Install it](/guide/install) to browse and search without creating a new chat first.
+Sessions Viewer is a Codex session history viewer that reads local rollout files, groups them by project and helps you recover the conversation before continuing. It is an independent open-source app, not an OpenAI product. [Install it](/guide/install) to browse and search without creating a new chat first.
 
 ## 1. Locate the correct project {#find-project}
 
@@ -26,7 +26,7 @@ Archived records live under `~/.codex/archived_sessions/`. The ordinary list exc
 
 ## 2. Find the message, then inspect the rollout {#read}
 
-Choose the project's history view. Global search (`⌘⇧F` on macOS) locates a phrase across projects; selecting the result opens the matching message. Within the session, use search or the prompt list to revisit the original task. See [other-platform shortcuts](/features/shortcuts).
+Select Codex and the project's history view. Global search (`⌘⇧F` on macOS) finds titles or saved user prompts across Codex projects, with a separate ID mode. Text hits open matching user messages; it does not search assistant events or tool output. See [search scope](/features/read-and-search#search-scope). Within the session, use search or the prompt list to revisit the original task. See [other-platform shortcuts](/features/shortcuts).
 
 ![Projects and sessions in the history workspace](/screenshots/cover.png)
 
@@ -36,7 +36,7 @@ Codex can record overlapping text in `event_msg` and `response_item`. Concatenat
 
 ## 3. Export the conversation you need {#export}
 
-Choose Markdown, offline HTML or parsed-message JSON from session export. Redact private code, paths and tool output before sharing. JSON exports are not native rollout backups and cannot be assumed importable by Codex. Keep the original file for archival needs. See [export details](/features/export-and-trash).
+Choose Markdown, readable HTML or parsed-message JSON from session export. Remote or unreadable images can remain external, so full offline portability is not guaranteed. Redact private code, paths and tool output before sharing. JSON exports are not native rollout backups and cannot be assumed importable by Codex. Keep the original file for archival needs. See [export details](/features/export-and-trash).
 
 ## 4. Resume instead of starting over {#resume}
 

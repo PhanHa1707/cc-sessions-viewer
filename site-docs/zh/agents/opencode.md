@@ -1,6 +1,6 @@
 ---
 title: opencode 的会话记录存在哪
-description: opencode 不用 JSONL，所有会话都在 ~/.local/share/opencode/opencode.db 这一个 SQLite 库里。表结构、关键的四张表，以及读记录的 SQL。
+description: 查找 opencode 受支持的 SQLite 历史和 XDG 路径，用 SQL 读记录，或用 Sessions Viewer 搜索提问、导出并在终端恢复会话。
 ---
 
 # opencode 的会话记录存在哪
@@ -13,7 +13,7 @@ description: opencode 不用 JSONL，所有会话都在 ~/.local/share/opencode/
 
 它遵循 XDG 规范，所以设了 `$XDG_DATA_HOME` 的话以 `$XDG_DATA_HOME/opencode/opencode.db` 为准。macOS 上也一样，尽管 macOS 上大多数应用会用 `~/Library/Application Support`。
 
-没有任何按会话拆分的文件。在 home 目录下 `grep -r` 是找不到 opencode 对话的，大部分人都是这么发现这件事的。
+在此处支持的布局中，会话是数据库行，不是逐会话 JSONL 文件。应查询 SQLite，不要把递归文本搜索当成对话提取方法。旧的文件存储布局不在此适配器范围内。
 
 ## 关键的四张表
 
@@ -32,14 +32,14 @@ part     -- id（"prt_…"）、message_id、session_id、time_created、data（
 
 ## 子 agent 会话
 
-`parent_id` 非空的会话是别的会话派生出来的子 agent 运行。它们是实打实、要花钱的 API 调用，但不是你主动开的对话。任何「列出我的会话」的地方都应该把它们过滤掉，而任何算总花费的地方都必须把它们算进去。
+`parent_id` 非空的会话是别的会话派生出来的子 agent 运行。应用在普通历史列表中隐藏它们，但统计包括它们已记录的工作。子会话可能包含用量与成本；本地模型、服务商计价或缺失字段都可能产生零记录成本，不能据此断定它是单独计费的 API 调用。
 
 ## 用只读方式打开
 
-你读的时候 opencode 的 TUI 可能正在写这个库。SQLite 的 WAL 模式让并发读是安全的，但前提是你以只读打开、不去拿写锁：
+检查时 opencode 的 TUI 可能正在写入。以只读连接避免意外修改；繁忙或变化中的数据库仍可能需要等待活动结束后重试。下方命令也遵循配置的 XDG 数据根目录：
 
 ```bash
-sqlite3 "file:$HOME/.local/share/opencode/opencode.db?mode=ro" ".tables"
+sqlite3 "file:${XDG_DATA_HOME:-$HOME/.local/share}/opencode/opencode.db?mode=ro" ".tables"
 ```
 
 ## 用 SQL 读 opencode 记录
@@ -68,7 +68,7 @@ WHERE m.session_id = 'ses_...'
 ORDER BY m.time_created, pt.time_created;
 ```
 
-按项目统计花费：
+按项目汇总会话已记录成本：
 
 ```sql
 SELECT p.worktree, ROUND(SUM(s.cost), 2) AS usd, COUNT(*) AS sessions
@@ -76,19 +76,25 @@ FROM session s JOIN project p ON p.id = s.project_id
 GROUP BY p.worktree ORDER BY usd DESC;
 ```
 
-最后这条故意把子 agent 会话算进去了，因为它们是账单的一部分。
+最后这条有意包含子 agent 行，汇总的是已保存的 `session.cost`，不是服务商发票。桌面统计则读取 assistant 消息成本；缺失或不一致记录可能导致两种汇总不同。
 
 ## 为什么成本必须从库里取 {#cost-from-db}
 
-opencode 可以挂任意 provider：DeepSeek、OpenRouter、本地模型，什么都行。按模型名查价目表推不出一次调用的真实成本，所以每条 assistant 消息里记着的 `modelID` 和 `cost` 才是唯一可信的来源。
+opencode 可使用不同服务商或本地模型，仅按模型名查价目表未必符合实际配置。应用读取 assistant 消息中的 `modelID`、`tokens` 和 `cost`，不按应用价目表重新计价。缺失的数值成本目前按零处理，只表示未测量，不代表确认免费。记录成本不是独立核验的发票，财务决策应对照服务商实际用量和账单。见[用量与成本边界](/zh/features/stats#cost-vs-bill)。
 
 ## 怎么恢复这个会话
 
 在项目目录运行 `opencode --session SESSION_ID`，需要已安装 opencode。应用提供[终端恢复](/zh/features/resume)，不提供 opencode 内置对话。
 
+## 查看与搜索 opencode 历史 {#view-and-search}
+
+[安装 Sessions Viewer](/zh/guide/install)，选择 opencode，再选项目阅读受支持的 SQLite 会话。用 `⌘⇧F`（macOS）或 `Ctrl+Shift+F`（Windows/Linux）跨 opencode 项目查标题和用户提问，也可切换为 ID 模式。不搜索助手回答或工具输出，详见[搜索范围](/zh/features/read-and-search#search-scope)。
+
+检查隐私后可导出 Markdown、HTML 或解析后消息 JSON；完整归档应保留原数据库。[导出限制](/zh/features/export-and-trash)包括外链或无法读取的图片。继续工作使用已安装的 opencode CLI 在终端恢复，不是 opencode 应用内对话。Sessions Viewer 是独立开源项目，不是 opencode 官方产品。恢复或分享前请查看[隐私说明](/zh/guide/privacy)。
+
 ## 依据与限制
 
-实现依据：[opencode 适配器](https://github.com/jerrywu001/cc-sessions-viewer/blob/22fefc6/src-tauri/src/agents/opencode.rs)。上游：[opencode 文档](https://opencode.ai/docs/)。
+路径、记录成本与操作说明于 2026-10-06 核对 [0.6.0 opencode 适配器](https://github.com/jerrywu001/cc-sessions-viewer/blob/69e0b4f/src-tauri/src/agents/opencode.rs)和[搜索实现](https://github.com/jerrywu001/cc-sessions-viewer/blob/69e0b4f/src-tauri/src/agents/mod.rs)。这是源码与合成测试范围，不是 CLI 实际运行认证。上游：[opencode 文档](https://opencode.ai/docs/)。
 
 <!--@include: ../../.vitepress/snippets/reference-zh.md-->
 

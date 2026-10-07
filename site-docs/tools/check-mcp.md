@@ -1,6 +1,6 @@
 ---
-title: Check which agents load an MCP server and review its configuration
-description: Inspect MCP configuration provenance, compatibility reads, cached context estimates and edit previews in Sessions Viewer, without mistaking config presence for a successful server connection.
+title: Check MCP Server Configuration
+description: Inspect MCP config sources, cached context estimates and edit previews in Sessions Viewer. Configuration presence does not prove a working connection.
 image: /screenshots/tools-mcp.png
 ---
 

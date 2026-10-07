@@ -1,6 +1,6 @@
 ---
 title: 导出与回收站
-description: 把会话导出为 Markdown、HTML 或解析后的消息 JSON，区分图片的离线与可迁移范围；回收和还原是明确的数据变更。
+description: 导出 Markdown、HTML 或 JSON，说明 Pi 原生条目树信封与一般解析消息的区别、图片可迁移性，以及回收／还原的数据变更。
 image: /screenshots/export.png
 ---
 
@@ -18,7 +18,13 @@ image: /screenshots/export.png
 | --- | --- |
 | Markdown | 粘进 issue、PR 或文档 |
 | HTML | 在浏览器中阅读，样式内联；图片能否迁移取决于来源 |
-| JSON | 保存查看器解析后的消息与元数据，不是原生文件完整备份 |
+| JSON | 一般保存解析消息与元数据；Pi 使用下方原生条目树信封，都不是原文件逐字节备份 |
+
+### Pi JSON 有什么不同 {#pi-json}
+
+Pi 的 JSON 菜单与批量导出使用查看器专用的 `cc-session-viewer-pi-export` 信封，不是一般的解析消息信封。它包含 `header`、所有已记录分支中合法且带 ID 的原生 `entries`，以及 `selectedLeafId`。Markdown／HTML 则呈现选中的对话链路。
+
+保存的是原生条目对象，不是原 JSONL 字节：无效 JSON 行及没有可识别条目 ID 的行会跳过。它不打包外部媒体，也没有证明 Pi CLI 可直接导入该 JSON 信封。完整归档仍需保留原记录与资源。于 2026-10-06 核对 [Pi 导出](https://github.com/jerrywu001/cc-sessions-viewer/blob/69e0b4f/src-tauri/src/agents/pi.rs)、[单条／批量分派](https://github.com/jerrywu001/cc-sessions-viewer/blob/69e0b4f/src/App.vue)及[文件写入](https://github.com/jerrywu001/cc-sessions-viewer/blob/69e0b4f/src/export.ts)，不是实际 CLI 往返验收。
 
 ### 所有图片都能离线阅读吗 {#offline-images}
 

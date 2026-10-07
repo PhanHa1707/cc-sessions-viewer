@@ -1,6 +1,6 @@
 ---
 title: Export and trash
-description: Export sessions as Markdown, HTML or parsed-message JSON, understand image portability limits, and move sessions into restorable trash with explicit data changes.
+description: Export session Markdown, HTML or JSON, including Pi's tree envelope. Understand image portability, parsed-data limits and explicit trash/restore changes.
 image: /screenshots/export.png
 ---
 
@@ -18,7 +18,13 @@ The export menu offers three formats; `⌘E` is the Markdown shortcut, not a for
 | --- | --- |
 | Markdown | Pasting into an issue, a pull request or a document |
 | HTML | A browser-readable file with inline styles; image portability depends on its sources |
-| JSON | Saving the viewer's parsed messages and metadata, not a full native-file backup |
+| JSON | Usually parsed messages and metadata; Pi uses a native-entry tree envelope described below. Neither is a byte-for-byte file backup |
+
+### What is different about Pi JSON? {#pi-json}
+
+Pi's JSON menu and batch export use the viewer-specific `cc-session-viewer-pi-export` envelope instead of the ordinary parsed-message envelope. It contains `header`, valid ID-bearing native `entries` from all recorded branches and `selectedLeafId`. This differs from Markdown/HTML, which render the selected conversation lineage.
+
+It preserves native entry objects, not the original JSONL bytes: malformed lines and lines without recognized entry IDs are omitted, and it does not bundle external media or certify that Pi CLI can import the JSON envelope. Keep the original transcript and assets for archival needs. Reviewed on 2026-10-06 against [Pi export](https://github.com/jerrywu001/cc-sessions-viewer/blob/69e0b4f/src-tauri/src/agents/pi.rs), [single/batch dispatch](https://github.com/jerrywu001/cc-sessions-viewer/blob/69e0b4f/src/App.vue) and [file writing](https://github.com/jerrywu001/cc-sessions-viewer/blob/69e0b4f/src/export.ts), not a real CLI round-trip test.
 
 ### Can I read every image offline? {#offline-images}
 

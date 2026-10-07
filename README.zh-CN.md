@@ -23,7 +23,7 @@ https://github.com/user-attachments/assets/9bcb92a8-e5b8-40e5-b492-af252162309b
 
 ## 项目定位
 
-Sessions Viewer 将本地 agent 会话记录整理成可搜索的工作区。打开项目，准确回看发生了什么，再从同一位置继续工作，无需手动翻找 JSONL 文件。
+Sessions Viewer 将本地 agent 会话记录整理成可搜索的工作区。打开项目，阅读受支持的已记录上下文，再从同一位置继续工作，无需手动翻找 JSONL 文件。
 
 > [!TIP]
 > **新增 —— 工具管理。** 七家 agent 的 skills、MCP server、hooks 和全局指令文件，集中在一个页面。把本机重复的 skill 和断掉的链接找出来并修好，查看缓存的 MCP 上下文估算并预览文件改动。测试 hook 前先检查命令：dry-run 会执行真实脚本，不是沙箱。
@@ -32,8 +32,8 @@ Sessions Viewer 将本地 agent 会话记录整理成可搜索的工作区。打
 
 ### 阅读与定位
 
-- **忠实还原** — 完整呈现思考链路、工具调用配对、结构化 Diff 与内嵌截图。
-- **全局搜索** — 跨项目搜索并直达具体消息，快捷键为 `⌘⇧F`。
+- **已记录上下文** — 查看受支持的思考块、配对工具、结构化 Diff 和已记录图片；呈现范围取决于源格式。
+- **全局搜索** — `⌘⇧F` 跨当前 agent 的项目匹配标题与已保存用户提问，也可切换会话 ID 模式；不匹配助手回答或工具输出。
 - **定位提问** — 在紧凑列表中浏览所有用户提问，点击后滚动到目标消息并闪烁高亮。
 - **视图历史** — 按项目保存可搜索的阅读和聊天视图，支持收藏和一键返回。
 
@@ -100,7 +100,7 @@ Claude Code、Codex、Grok Build、Kimi Code、Pi、Antigravity CLI 和 opencode
     </td>
     <td width="50%">
       <img src="docs/screenshots/search.png" alt="全局搜索浮层" />
-      <p align="center"><em>全局搜索（⌘⇧F）直达目标消息</em></p>
+      <p align="center"><em>全局搜索（⌘⇧F）打开命中会话和用户提问</em></p>
     </td>
   </tr>
   <tr>
@@ -130,7 +130,7 @@ Claude Code、Codex、Grok Build、Kimi Code、Pi、Antigravity CLI 和 opencode
     </td>
     <td width="50%">
       <img src="docs/screenshots/export.png" alt="浏览器中预览导出的 HTML" />
-      <p align="center"><em>导出 HTML — 完全离线，浏览器直接打开</em></p>
+      <p align="center"><em>导出 HTML — 浏览器可阅读，图片可能仍为外链</em></p>
     </td>
   </tr>
 </table>

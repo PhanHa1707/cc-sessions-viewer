@@ -20,16 +20,16 @@ hero:
       link: https://github.com/jerrywu001/cc-sessions-viewer
 
 features:
-  - title: 原样还原
-    details: 思考链、工具调用与结果的配对、结构化 diff、粘贴的截图，都按当时在屏幕上发生的样子呈现。
+  - title: 阅读已记录上下文
+    details: 阅读受支持的思考块、配对的工具调用与结果、结构化 diff 和已记录图片。呈现范围取决于 agent 格式和源数据是否保留。
     link: /zh/features/read-and-search
     linkText: 会话是怎么还原的
   - title: 跨项目搜索
-    details: ⌘⇧F 一次搜遍所有项目，直接跳到命中的那条消息。一个紧凑列表里扫完你在这个会话里写过的每一句提问。
+    details: ⌘⇧F 跨当前 agent 的项目搜索标题和用户提问，也可切换为会话 ID 搜索。打开命中上下文，或用会话提问列表定位。
     link: /zh/features/read-and-search#finding-a-message
     linkText: 搜索与跳转提问
   - title: 从断点继续
-    details: 在内嵌终端里重开会话，或交给 Terminal.app、iTerm2、Ghostty、Warp、cmux，也可以直接在应用内的对话里继续，模型、推理强度、权限模式都是实时可调的。
+    details: 使用对应 CLI 在内嵌或受支持的外部终端恢复会话。Claude Code 和 Codex 还支持应用内对话，可调整模型与权限。
     link: /zh/features/resume
     linkText: 恢复与继续
   - title: 项目文件编辑器
